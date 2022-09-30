@@ -20,10 +20,23 @@ library(corrplot)
 ui <- fluidPage(
     # Application title
     useShinyjs(),
+    tags$head(tags$style(HTML("body {
+                                  background-color:#FCF6F5FF;
+                                  color:#2F3C7E;
+                                  }
+                              .well {
+                                  background-color:#2F3C7E;
+                                  color:#FCF6F5FF;
+                              }
+                              .sw-dropdown-in {
+                                  color: #2F3C7E;
+                              }"))),
     titlePanel("MALDI ANI analysis"),
+    
     
     # Sidebar with a slider input for number of bins
     sidebarLayout(
+        
         sidebarPanel(
             fileInput("input_excel", "Excel containing the ANI MALDI"),
             uiOutput("tab1"),
@@ -140,7 +153,7 @@ server <- function(input, output) {
             selectInput(
                 "sheet1",
                 "Worksheet with ANI values",
-                choices = sheets,
+                choices = c(sheets,"None"),
                 selected = sheets[1]
             )
         }
@@ -153,8 +166,8 @@ server <- function(input, output) {
             selectInput(
                 "sheet2",
                 "Worksheet with MALDI values",
-                choices = sheets,
-                selected = sheets[2]
+                choices = c(sheets,"None"),
+                selected = sheets[min(2,length(sheets))]
             )
         }
         
@@ -171,6 +184,7 @@ server <- function(input, output) {
         
         disable(id = "visualize")
         workbook <- wb()
+        if (input$sheet1!="None"){
         ws <-
             readWorkbook(workbook,
                          colNames = T,
@@ -229,6 +243,8 @@ server <- function(input, output) {
                  contentType = 'image/png',
                  alt = "ANI plot")
         }, deleteFile = T)
+        }
+        if (input$sheet2!="None"){
         ws <-
             readWorkbook(
                 workbook,
@@ -236,6 +252,8 @@ server <- function(input, output) {
                 rowNames = T,
                 sheet = input$sheet2
             )
+        rownames(ws) <- trimws(rownames(ws))
+        colnames(ws) <- trimws(colnames(ws))
         # adjust format with correct rownames and make matrix
         MALDI <- as.matrix(ws)
         MALDI_PLOT <- corrplot.mixed(
@@ -287,9 +305,9 @@ server <- function(input, output) {
                  contentType = 'image/png',
                  alt = "ANI plot")
         }, deleteFile = T)
-        
+        }
         ## mixed plots
-        
+        if (input$sheet1!="None" && input$sheet2!="None"){
         # New MALDI matrix with order of columns from ANI matrix
         
         colANI <- colnames(ANI_PLOT$corr)
@@ -448,9 +466,11 @@ server <- function(input, output) {
                  contentType = 'image/png',
                  alt = "ANI plot")
         }, deleteFile = T)
-        
+        }
         enable(id = "visualize")
-        
+        runjs(
+            "$('.load-container').each(function(){$(this).addClass('shiny-spinner-hidden')})"
+        )
     })
 }
 
