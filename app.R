@@ -7,14 +7,10 @@
 #    http://shiny.rstudio.com/
 #
 
-library(shiny)
-library(shinyjs)
-library(shinyBS)
-library(shinyWidgets)
-library(shinycssloaders)
-library(openxlsx)
-library(RColorBrewer)
-library(corrplot)
+packages <- c("shiny", "shinyjs", "shinyBS", "shinyWidgets", "shinycssloaders", "openxlsx", "RColorBrewer", "corrplot")
+new.packages <- packages[!(packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+lapply(packages, require, character.only = TRUE)
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
