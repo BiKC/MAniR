@@ -7,10 +7,21 @@
 #    http://shiny.rstudio.com/
 #
 
-packages <- c("shiny", "shinyjs", "shinyBS", "shinyWidgets", "shinycssloaders", "openxlsx", "RColorBrewer", "corrplot")
-new.packages <- packages[!(packages %in% installed.packages()[,"Package"])]
-if(length(new.packages)) install.packages(new.packages)
-lapply(packages, require, character.only = TRUE)
+# For local usage
+#packages <- c("shiny", "shinyjs", "shinyBS", "shinyWidgets", "shinycssloaders", "openxlsx", "RColorBrewer", "corrplot")
+#new.packages <- packages[!(packages %in% installed.packages()[,"Package"])]
+#if(length(new.packages)) install.packages(new.packages)
+#lapply(packages, require, character.only = TRUE)
+
+# For shinyapps.io
+library("shiny")
+library("shinyjs")
+library("shinyBS")
+library("shinyWidgets")
+library("shinycssloaders")
+library("openxlsx")
+library("RColorBrewer")
+library("corrplot")
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -44,7 +55,8 @@ ui <- fluidPage(
             dropdown(
                 list(
                     sliderInput("dec", "Decimal places", 0, 5, 3, 1),
-                    sliderInput("ncex", "Size of numbers", 0.1, 2, 0.8, 0.1),
+                    sliderInput("ncex", "Size of numbers in the correlation plot", 0.1, 2, 0.8, 0.1),
+                    sliderInput("clcex", "Size of colorscale numbers", 0.1, 2, 0.8, 0.1),
                     sliderInput("scale", "Scale of the plot (default 1=1000x1000)", 0.1, 5, 1, 0.1),
                     sliderInput("labelcex", "Size of the ANI/MALDI labels", 1, 5, 3, 0.5)
                 ),
@@ -231,7 +243,7 @@ server <- function(input, output) {
                 number.cex = input$ncex,
                 number.digits = input$dec,
                 tl.pos = "lt",
-                cl.cex = input$ncex
+                cl.cex = input$clcex
             )
             dev.off()
             # Return a list containing the filename
@@ -292,7 +304,7 @@ server <- function(input, output) {
                 number.cex = input$ncex,
                 number.digits = input$dec,
                 tl.pos = "lt",
-                cl.cex = input$ncex
+                cl.cex = input$clcex
             )
             
             dev.off()
@@ -325,10 +337,10 @@ server <- function(input, output) {
                 xpd = T
             )
             corrplot(
-                ani_maldi,
+                ANI,
                 is.corr = FALSE,
                 type = "upper",
-                order = "original",
+                order = "hclust",
                 tl.col = "black",
                 method = "color",
                 col = getcolorScale(),
@@ -339,11 +351,11 @@ server <- function(input, output) {
                 diag = TRUE,
                 tl.pos = "lt",
                 tl.cex = input$ncex,
-                cl.cex = input$ncex
+                cl.cex = input$clcex
                 
             )
             corrplot(
-                MALDI,
+                ani_maldi,
                 is.corr = FALSE,
                 type = "lower",
                 order = "original",
@@ -358,7 +370,7 @@ server <- function(input, output) {
                 tl.cex = input$ncex,
                 tl.pos = "n",
                 cl.pos = "b",
-                cl.cex = input$ncex,
+                cl.cex = input$clcex,
                 add = TRUE
             )
             
@@ -419,7 +431,7 @@ server <- function(input, output) {
                 diag = TRUE,
                 tl.pos = "lt",
                 tl.cex = input$ncex,
-                cl.cex = input$ncex
+                cl.cex = input$clcex
             )
             
             corrplot(
@@ -438,7 +450,7 @@ server <- function(input, output) {
                 diag = FALSE,
                 tl.pos = "n",
                 cl.pos = "b",
-                cl.cex = input$ncex,
+                cl.cex = input$clcex,
                 add = TRUE
             )
             # Add axis titles
