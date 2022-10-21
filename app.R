@@ -18,7 +18,6 @@ library("shiny")
 library("shinyjs")
 library("shinyBS")
 library("shinyWidgets")
-library("shinycssloaders")
 library("openxlsx")
 library("RColorBrewer")
 library("corrplot")
@@ -28,112 +27,166 @@ ui <- fluidPage(
     # Application title
     useShinyjs(),
     tags$head(tags$style(HTML("body {
-                                  background-color:#FCF6F5FF;
+                                  background-color:#fffff9;
                                   color:#2F3C7E;
                                   }
                               .well {
                                   background-color:#2F3C7E;
-                                  color:#FCF6F5FF;
+                                  color:#fffff9;
                               }
                               .sw-dropdown-in {
                                   color: #2F3C7E;
-                              }"))),
-    titlePanel("MALDI ANI analysis"),
+                              }
+                              .tab-content {
+                                padding:10px;
+                                background-color:#fffff9;
+                                color: #2F3C7E;
+                                border-radius:4px;
+                              }
+                              #outputPanel>li>a,
+                              li[role='presentation']>a {
+                               background-color:#DCD6D5FF;
+                              }
+                              #outputPanel>li.active>a{
+                               background-color:#FFF;
+                              }
+                              table, th, td {
+                                border: 1px solid black;
+                                padding:5px
+                              }
+                              "
+                              ))),
+    titlePanel("Correlation analysis"),
     
     
     # Sidebar with a slider input for number of bins
     sidebarLayout(
         
         sidebarPanel(
-            fileInput("input_excel", "Excel containing the ANI MALDI"),
-            uiOutput("tab1"),
-            uiOutput("tab2"),
-            actionButton('visualize', 'Visualize the dataset'),
-            br(),
-            br(),
-            br(),
-            dropdown(
-                list(
-                    sliderInput("dec", "Decimal places", 0, 5, 3, 1),
-                    sliderInput("ncex", "Size of numbers in the correlation plot", 0.1, 2, 0.8, 0.1),
-                    sliderInput("clcex", "Size of colorscale numbers", 0.1, 2, 0.8, 0.1),
-                    sliderInput("scale", "Scale of the plot (default 1=1000x1000)", 0.1, 5, 1, 0.1),
-                    sliderInput("labelcex", "Size of the ANI/MALDI labels", 1, 5, 3, 0.5)
+            tabsetPanel(
+                tabPanel("Input file",
+            fileInput("input_excel", "Excel containing the correlation data"),
+            fluidRow(
+                column(6,
+                       uiOutput("tab1")
                 ),
-                selectInput("cmode", "Color mode", c("sequential", "diverging"), selected = "diverging"),
-                conditionalPanel(condition = "input.cmode=='sequential'",
-                                 
-                                     
-                                     selectInput(
-                                         inputId = "sequentialcolor",
-                                         label = "Colorscale",
-                                         rev(c(
-                                             "Oranges",
-                                             "Purples",
-                                             "Reds",
-                                             "Blues",
-                                             "Greens",
-                                             "Greys",
-                                             "OrRd",
-                                             "YlOrRd",
-                                             "YlOrBr",
-                                             "YlGn"
-                                         )),
-                                         selected = "YlOrRd"
-                                     ),
-                                     bsTooltip("sequentialcolor",title = '<img src="Sequential.png">', placement = "top")
-                                 ),
-                conditionalPanel(
-                    condition = "input.cmode=='diverging'",
-                    selectInput(
-                        inputId = "divergentcolor",
-                        label = "Colorscale",
-                        rev(c("RdBu", "BrBG", "PiYG", "PRGn", "PuOr", "RdYlBu")),
-                        selected = "RdBu"
-                    ),
-                    bsTooltip("divergentcolor",title = '<img src="Diverging.png">', placement = "top")
-                    
-                ),
-                
-                label = "Advanced settings"
+                column(6,
+                       uiOutput("tab2")
+                )
             ),
-            br(),
-            br(),
-            br(),
-            br(),
+            fluidRow(
+                column(6,
+                    uiOutput("Yaxis",inline = T)
+                       ),
+                
+                column(6,
+                       uiOutput("Xaxis",inline = T)
+                )
+                ),
+            actionButton('visualize', 'Visualize the dataset'),
+            tags$br(),
+            tags$br(),
+            tags$br(),
+            tags$br(),
             tags$div(tags$strong("Source code:")),
             tags$a(img(src = "bikc_github.png", width = "100px"), href =
                        "https://github.com/BiKC")
+                ),
+            tabPanel("Plot settings",
+                    sliderInput("dec", "Decimal places", 0, 5, 3, 1),
+                    sliderInput("ncex", "Size of numbers in the correlation plot", 0.1, 4, 0.8, 0.1),
+                    sliderInput("clcex", "Size of colorscale numbers", 0.1, 4, 0.8, 0.1),
+                    sliderInput("tlcex", "Size of text labels (row and column names)", 0.1, 4, 0.8, 0.1),
+                    sliderInput("scale", "Scale of the plot (default 1=1000x1000)", 0.5, 10, 1, 0.1),
+                    sliderInput("labelcex", "Size of the X/Y labels (combined plots)", 1, 10, 3, 0.1),
+                selectInput("cmode", "Color mode", c("sequential", "diverging"), selected = "diverging"),
+                # Sequential colors
+                conditionalPanel(
+                    condition = "input.cmode=='sequential'",
+                    selectizeInput(
+                        inputId = "sequentialcolor",
+                        label = "Colorscale",
+                        rev(c("Oranges","Purples","Reds","Blues","Greens","Greys","OrRd","YlOrRd","YlOrBr","YlGn")),
+                        selected = "YlOrRd",
+                        
+                        options = list(render = I(
+                            '{
+                            option: function(item, escape) {
+                              return "<div style=\'display:flex; justify-content:space-between\'><strong>" + escape(item.value) + "</strong><img src=\'" +escape(item.value)+".png\'>"
+                            }
+                          }'))
+                    )
+                    ),
+                # Diverging colors
+                conditionalPanel(
+                    condition = "input.cmode=='diverging'",
+                    selectizeInput(
+                        inputId = "divergentcolor",
+                        label = "Colorscale",
+                        rev(c("RdBu", "BrBG", "PiYG", "PRGn", "PuOr", "RdYlBu")),
+                        selected = "RdBu",
+                        
+                        options = list(render = I(
+                            '{
+                            option: function(item, escape) {
+                              return "<div style=\'display:flex; justify-content:space-between\'><strong>" + escape(item.value) + "</strong><img src=\'" +escape(item.value)+".png\'>"
+                            }
+                          }'))
+                    ),
+                )
             
+            
+            ),
+            tabPanel("Download plots","WIP",icon("tools"))
+            )
         ),
         
         # Show a plot of the generated distribution
-        mainPanel(tabsetPanel(
-            tabPanel(title = "ANI-plot",
-                     withSpinner(
-                         imageOutput("ANI", width = "100%", height = "85vh")
-                     )),
-            tabPanel(title = "MALDI-plot",
-                     withSpinner(
-                         imageOutput("MALDI", width = "100%", height = "85vh")
-                     )),
-            tabPanel(title = "ANI-MALDI-plot",
-                     withSpinner(
-                         imageOutput("ANIMALDI", width = "100%", height = "85vh")
-                     )),
-            tabPanel(title = "MALDI-ANI-plot",
-                     withSpinner(
-                         imageOutput("MALDIANI", width = "100%", height = "85vh")
-                     ))
+        mainPanel(tabsetPanel(id="outputPanel",
+            tabPanel("Instructions",
+                     h3("Correlation analysis tool"),
+                     div("The input should be provided in the form of an xlsx file. The file should contain the data in the following format:"),
+                     tags$table(
+                         tags$tr(
+                             tags$th(""),tags$th("bacteria1"),tags$th("bacteria2"),tags$th("bacteria3"),tags$th("bacteria4"),tags$th("bacteria5")
+                         ),
+                         tags$tr(
+                             tags$th("bacteria1"),tags$td("100"),tags$td("98.5"),tags$td("97.5"),tags$td("96.5"),tags$td("95.5")
+                         ),
+                         tags$tr(
+                             tags$th("bacteria2"),tags$td("98.5"),tags$td("100"),tags$td("98.5"),tags$td("97.5"),tags$td("96.5")
+                         ),
+                         tags$tr(
+                             tags$th("bacteria3"),tags$td("97.5"),tags$td("98.5"),tags$td("100"),tags$td("98.5"),tags$td("97.5")
+                         ),
+                         tags$tr(
+                             tags$th("bacteria4"),tags$td("96.5"),tags$td("97.5"),tags$td("98.5"),tags$td("100"),tags$td("98.5")
+                         ),
+                         tags$tr(
+                             tags$th("bacteria5"),tags$td("95.5"),tags$td("96.5"),tags$td("97.5"),tags$td("98.5"),tags$td("100")
+                         )
+                     ),
+                     div(strong("Note: "), "The diagonal should always be 100 since this is the same thing you are comparing."),
+                     div(strong("Note: "), "Row and column names are free to choose however you always need the same values in both. Avoid spaces in these column and row names!"),
+                     br(),
+                     tags$ol(
+                     tags$li("Upload the Excel file"),
+                     tags$li("Select the sheets containing the data. Note that the second sheet is optional. If provided, you can compare two correlation matrixes from different sheets."),
+                     tags$li("If two sheets are provided, you can change the labels for the X and Y axis for the combined plots. By default, the names of the sheets will be suggested."),
+                     tags$li("click on \"Visualize the dataset\". This can take a few seconds depending on the size of the dataset."),
+                     tags$li("To customize the plot, go to the tab \"Plot settings\" on the left and change the settings as you please.")
+                     ),
+                     br(),
+                     actionButton("Samplefile", "Run the analysis on a sample file"),
+                     downloadButton("downloadSampleFile","Download the sample file")
+            )
         ))
     )
 )
 
 # Define server logic required to draw a histogram
 server <- function(input, output) {
-    runjs(
-        "$('.load-container').each(function(){$(this).addClass('shiny-spinner-hidden')})"
-    )
+
     
     getcolorScale <- function() {
         if (input$cmode == "sequential") {
@@ -144,55 +197,91 @@ server <- function(input, output) {
         }
     }
     
+    output$downloadSampleFile <- downloadHandler(
+        filename = function() {
+          "sample_file.xlsx"
+        },
+        content = function(con) {
+          file.copy("www/moc_data.xlsx", con)
+        }
+        )
     
     wb <- reactive({
-        if (is.null(input$input_excel)) {
-            return(NULL)
+        if (!is.null(input$input_excel) | input$Samplefile==0) {
+            loadWorkbook(input$input_excel$datapath)
         }
-        loadWorkbook(input$input_excel$datapath)
+        else if (input$Samplefile>0){
+            loadWorkbook("www/moc_data.xlsx")
+        }
+        else {return(NULL)}
     })
     
     
-    
-    
-    output$tab1 <- renderUI({
-        if (is.null(input$input_excel) == F) {
+    observeEvent(c(input$input_excel,input$Samplefile), {
+        if (is.null(input$input_excel) == F | input$Samplefile>0) {
+            print("uhuh")
             sheets <- sheets(wb())
-            selectInput(
-                "sheet1",
-                "Worksheet with ANI values",
-                choices = c(sheets,"None"),
-                selected = sheets[1]
-            )
+            # sheet selection boxes
+            output$tab1 <- renderUI({
+                selectInput(
+                    "sheet1",
+                    HTML("Worksheet with first correlation <br>matrix"),
+                    choices = sheets,
+                    selected = sheets[1]
+                )
+                
+                
+            })
+            output$tab2 <- renderUI({
+                selectInput(
+                    "sheet2",
+                    "Worksheet with second correlation matrix (optional)",
+                    choices = c(sheets, "None"),
+                    selected = sheets[min(2, length(sheets))]
+                )
+            })
+            
+            # Xaxis and Yaxis selection boxes + auto suggestion based on sheet names
+            output$Yaxis <- renderUI({
+                textInput("yas",label = "Name for matrix 1 (Y-axis on combined plot)",value = sheets[1])
+            })
+            output$Xaxis <- renderUI({
+                textInput("xas",label = "Name for matrix 2 (X-axis on combined plot)",value = sheets[min(2, length(sheets))])
+            })
         }
-        
     })
     
-    output$tab2 <- renderUI({
-        if (is.null(input$input_excel) == F) {
-            sheets <- sheets(wb())
-            selectInput(
-                "sheet2",
-                "Worksheet with MALDI values",
-                choices = c(sheets,"None"),
-                selected = sheets[min(2,length(sheets))]
-            )
+    observeEvent(input$sheet2,{
+        # if no second sheet is selected, don't use Xaxis/Yaxis
+        if (input$sheet2=="None"){
+            output$Xaxis<-NULL
+            output$Yaxis<-NULL
         }
-        
     })
+    
+    
+    
+    
     
     observeEvent(input$visualize, {
+        withProgress(message = "Making plots", value = 0,{
+        # Remove tabs if they exists
+        try(removeTab("outputPanel","Matrix 1"))
+        try(removeTab("outputPanel","Matrix 2"))
+        try(removeTab("outputPanel","Matrix 1 vs Matrix 2 (ordered on matrix 1)"))
+        try(removeTab("outputPanel","Matrix 1 vs Matrix 2 (ordered on matrix 2)"))
+        
         
         if (is.null(wb())) {
             return()
         }
-        runjs(
-            "$('.load-container').each(function(){$(this).removeClass('shiny-spinner-hidden')})"
-        )
         
         disable(id = "visualize")
         workbook <- wb()
-        if (input$sheet1!="None"){
+        appendTab("outputPanel",
+                  tabPanel(title = "Matrix 1",
+                               imageOutput("ANI")
+                           ),select = T)
         ws <-
             readWorkbook(workbook,
                          colNames = T,
@@ -211,8 +300,10 @@ server <- function(input, output) {
             order = "hclust",
             diag = "n",
             tl.col = "black",
-            number.cex = input$ncex,
-            tl.pos = "lt"
+            number.cex = input$ncex, 
+            tl.cex=input$tlcex,
+            tl.pos = "lt",
+            
         )
         
         output$ANI <- renderImage({
@@ -226,7 +317,7 @@ server <- function(input, output) {
             
             par(
                 mar = c(input$labelcex + 1, 4.1, 4.1, 2.1),
-                oma = c(3 * input$labelcex, 0, 0, 3 * input$labelcex),
+                #oma = c(3 * input$labelcex, 0, 0, 3 * input$labelcex),
                 xpd = T
             )
             # ani plot
@@ -240,7 +331,8 @@ server <- function(input, output) {
                 order = "hclust",
                 diag = "n",
                 tl.col = "black",
-                number.cex = input$ncex,
+                number.cex = input$ncex, 
+                tl.cex=input$tlcex,
                 number.digits = input$dec,
                 tl.pos = "lt",
                 cl.cex = input$clcex
@@ -248,11 +340,18 @@ server <- function(input, output) {
             dev.off()
             # Return a list containing the filename
             list(src = outfile,
+                 width=1000 * input$scale,
+                 height=1000 * input$scale,
                  contentType = 'image/png',
-                 alt = "ANI plot")
+                 alt = "Correlation plot 1")
         }, deleteFile = T)
-        }
+        incProgress(1/4)
         if (input$sheet2!="None"){
+            appendTab("outputPanel",
+                      tabPanel(title = "Matrix 2",
+                               
+                                   imageOutput("MALDI", width = "100%", height = "85vh")
+                               ))
         ws <-
             readWorkbook(
                 workbook,
@@ -272,7 +371,8 @@ server <- function(input, output) {
             order = "hclust",
             diag = "n",
             tl.col = "black",
-            number.cex = input$ncex,
+            number.cex = input$ncex, 
+            tl.cex=input$tlcex,
             tl.pos = "lt"
         )
         
@@ -287,7 +387,7 @@ server <- function(input, output) {
             
             par(
                 mar = c(input$labelcex + 1, 4.1, 4.1, 2.1),
-                oma = c(3 * input$labelcex, 0, 0, 3 * input$labelcex),
+                #oma = c(3 * input$labelcex, 0, 0, 3 * input$labelcex),
                 xpd = T
             )
             # MALDI plot
@@ -301,7 +401,8 @@ server <- function(input, output) {
                 order = "hclust",
                 diag = "n",
                 tl.col = "black",
-                number.cex = input$ncex,
+                number.cex = input$ncex, 
+                tl.cex=input$tlcex,
                 number.digits = input$dec,
                 tl.pos = "lt",
                 cl.cex = input$clcex
@@ -310,12 +411,20 @@ server <- function(input, output) {
             dev.off()
             # Return a list containing the filename
             list(src = outfile,
+                 width=1000 * input$scale,
+                 height=1000 * input$scale,
                  contentType = 'image/png',
-                 alt = "ANI plot")
+                 alt = "Correlation plot 2")
         }, deleteFile = T)
         }
+        incProgress(1/4)
+        
         ## mixed plots
         if (input$sheet1!="None" && input$sheet2!="None"){
+            appendTab("outputPanel",
+                      tabPanel(title = "Matrix 1 vs Matrix 2 (ordered on matrix 1)",
+                                   imageOutput("ANIMALDI", width = "100%", height = "85vh")
+                               ))
         # New MALDI matrix with order of columns from ANI matrix
         
         colANI <- colnames(ANI_PLOT$corr)
@@ -350,7 +459,7 @@ server <- function(input, output) {
                 number.digits = input$dec,
                 diag = TRUE,
                 tl.pos = "lt",
-                tl.cex = input$ncex,
+                tl.cex = input$tlcex,
                 cl.cex = input$clcex
                 
             )
@@ -367,7 +476,7 @@ server <- function(input, output) {
                 number.cex = input$ncex,
                 number.digits = input$dec,
                 diag = FALSE,
-                tl.cex = input$ncex,
+                tl.cex = input$tlcex,
                 tl.pos = "n",
                 cl.pos = "b",
                 cl.cex = input$clcex,
@@ -376,14 +485,14 @@ server <- function(input, output) {
             
             # Add axis titles
             mtext(
-                "ANI",
+                input$yas,
                 side = 4,
                 outer = T,
                 line = input$labelcex,
                 cex = input$labelcex
             )
             mtext(
-                "MALDI",
+                input$xas,
                 side = 1,
                 outer = T,
                 line = input$labelcex,
@@ -392,11 +501,18 @@ server <- function(input, output) {
             dev.off()
             # Return a list containing the filename
             list(src = outfile,
+                 width=1000 * input$scale,
+                 height=1000 * input$scale,
                  contentType = 'image/png',
                  alt = "ANIMALDI plot")
         }, deleteFile = TRUE)
+        incProgress(1/4)
         
-        
+        appendTab("outputPanel",
+                  tabPanel(title = "Matrix 1 vs Matrix 2 (ordered on matrix 2)",
+                           
+                               imageOutput("MALDIANI", width = "100%", height = "85vh")
+                           ))
         # New ANI matrix with order of columns from maldi matrix
         colMALDI <- colnames(MALDI_PLOT$corr)
         MALDI_ANI <- ANI[colMALDI, colMALDI]
@@ -426,11 +542,11 @@ server <- function(input, output) {
                 col = getcolorScale(),
                 addgrid.col = "grey",
                 addCoef.col = 'black',
-                number.cex = input$ncex,
+                number.cex = input$ncex, 
                 number.digits = input$dec,
                 diag = TRUE,
                 tl.pos = "lt",
-                tl.cex = input$ncex,
+                tl.cex = input$tlcex,
                 cl.cex = input$clcex
             )
             
@@ -446,23 +562,23 @@ server <- function(input, output) {
                 addCoef.col = 'black',
                 number.cex = input$ncex,
                 number.digits = input$dec,
-                tl.cex = input$ncex,
                 diag = FALSE,
                 tl.pos = "n",
+                tl.cex = input$tlcex,
                 cl.pos = "b",
                 cl.cex = input$clcex,
                 add = TRUE
             )
             # Add axis titles
             mtext(
-                "ANI",
+                input$yas,
                 side = 4,
                 outer = T,
                 line = input$labelcex,
                 cex = input$labelcex
             )
             mtext(
-                "MALDI",
+                input$xas,
                 side = 1,
                 outer = T,
                 line = input$labelcex,
@@ -471,14 +587,16 @@ server <- function(input, output) {
             dev.off()
             # Return a list containing the filename
             list(src = outfile,
+                 width=1000 * input$scale,
+                 height=1000 * input$scale,
                  contentType = 'image/png',
                  alt = "ANI plot")
         }, deleteFile = T)
         }
+        incProgress(1/4)
+        
         enable(id = "visualize")
-        runjs(
-            "$('.load-container').each(function(){$(this).addClass('shiny-spinner-hidden')})"
-        )
+    })
     })
 }
 
