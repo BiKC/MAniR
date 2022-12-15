@@ -21,6 +21,7 @@ library("shinyWidgets")
 library("openxlsx")
 library("RColorBrewer")
 library("corrplot")
+library("periscope")
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -94,11 +95,11 @@ ui <- fluidPage(
                 ),
             tabPanel("Plot settings",
                     sliderInput("dec", "Decimal places", 0, 5, 3, 1),
-                    sliderInput("ncex", "Size of numbers in the correlation plot", 0.1, 4, 0.8, 0.1),
-                    sliderInput("clcex", "Size of colorscale numbers", 0.1, 4, 0.8, 0.1),
-                    sliderInput("tlcex", "Size of text labels (row and column names)", 0.1, 4, 0.8, 0.1),
-                    sliderInput("scale", "Scale of the plot (default 1=1000x1000)", 0.5, 10, 1, 0.1),
-                    sliderInput("labelcex", "Size of the X/Y labels (combined plots)", 1, 10, 3, 0.1),
+                    sliderInput("ncex", "Size of numbers in the correlation plot", 0.1, 10, 0.8, 0.1),
+                    sliderInput("clcex", "Size of colorscale numbers", 0.1, 10, 0.8, 0.1),
+                    sliderInput("tlcex", "Size of text labels (row and column names)", 0.1, 10, 0.8, 0.1),
+                    sliderInput("scale", "Scale of the plot (default 1=1000x1000)", 0.5, 50, 1, 0.1),
+                    sliderInput("labelcex", "Size of the X/Y labels (combined plots)", 1, 20, 3, 0.1),
                 selectInput("cmode", "Color mode", c("sequential", "diverging"), selected = "diverging"),
                 # Sequential colors
                 conditionalPanel(
