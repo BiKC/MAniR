@@ -265,6 +265,10 @@ server <- function(input, output) {
   
   
   observeEvent(input$visualize, {
+    # check if the user has selected a file
+    if (is.null(input$input_excel)) {
+      return()
+    }
     withProgress(message = "Making plots", value = 0,{
       # Remove tabs if they exists
       try(removeTab("outputPanel","Matrix 1"))
