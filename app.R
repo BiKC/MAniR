@@ -8,13 +8,13 @@
 #
 
 # For local usage
-# packages <- c(
-#   "shiny", "shinyjs", "shinyBS", "shinyWidgets", "shinycssloaders",
-#   "openxlsx", "RColorBrewer", "corrplot", "periscope", "heatmaply"
-# )
-# new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
-# if (length(new_packages)) install.packages(new.packages)
-# lapply(packages, require, character.only = TRUE)
+packages <- c(
+  "shiny", "shinyjs", "shinyBS", "shinyWidgets", "shinycssloaders",
+  "openxlsx", "RColorBrewer", "corrplot", "periscope", "heatmaply"
+)
+new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
+if (length(new_packages)) install.packages(new.packages)
+lapply(packages, require, character.only = TRUE)
 
 
 # For shinyapps.io
