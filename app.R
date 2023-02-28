@@ -31,7 +31,6 @@ library("plotly")
 
 # import UI
 source("ui.R")
-
 # import server
 source("server.R")
 
