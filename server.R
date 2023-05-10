@@ -13,6 +13,10 @@ library("plotly")
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
 
+    sendCustomMessage <- function(id,msg) {
+        session$sendCustomMessage(id, msg)
+    }
+
     debugStart <- function() {
         # click on Run tha analysis on a sample file button and then click on Visualize the results
         click("Samplefile")
@@ -106,7 +110,7 @@ server <- function(input, output, session) {
             data1,
             is.corr = FALSE,
             type = "upper",
-            order = "hclust",
+            #order = "hclust",
             tl.col = "black",
             method = "color",
             col = getcolorscale(),
@@ -408,7 +412,9 @@ server <- function(input, output, session) {
             )
             # save to session
             session$userData$first_correlation_matrix <- first_correlation_matrix
-
+            # send first_correlation_matrix as custom message to the client together with the metadata
+            # this is used to make the plotly plot
+            sendCustomMessage("first_correlation_matrix", list(first_correlation_matrix, metadata))
             # if not legacy, use plotly
             if (input$legacymode == FALSE) {
                 output$ANI <- renderPlotly({
@@ -489,19 +495,22 @@ server <- function(input, output, session) {
                 # New MALDI matrix with order of columns from ANI matrix
 
                 col_matrix1 <- colnames(first_correlation_plot$corr)
+                #print(col_matrix1)
                 # check if all columns are present in MALDI matrix
                 if (check_errors(col_matrix1, colnames(second_correlation_matrix), "ANIMALDI_Error")) {
                     ani_maldi <- second_correlation_matrix[col_matrix1, col_matrix1]
+                    first_correlation_matrix_ordered <- first_correlation_matrix[col_matrix1,col_matrix1]
+                    #print(ani_maldi)
                     # save to session
                     session$userData$ani_maldi <- ani_maldi
                     if (input$legacymode == FALSE) {
-                        output$ANIMALDI <- renderPlotly(combined_plot(first_correlation_matrix, ani_maldi, session$userData$ANI_order_x, session$userData$ANI_order_y, metadata))
+                        output$ANIMALDI <- renderPlotly(combined_plot(first_correlation_matrix_ordered, ani_maldi, session$userData$ANI_order_x, session$userData$ANI_order_y, metadata))
                     } else {
                         # update width and height of the plot based on input$scale (default 1000*1000 with scale=1)
                         scale=input$scale
                         shinyjs::runjs(paste0("$('#ANIMALDI_legacy').width(", scale, " * 1000)"))
                         shinyjs::runjs(paste0("$('#ANIMALDI_legacy').height(", scale, " * 1000)"))
-                        output$ANIMALDI_legacy <- renderPlot(combined_plot_legacy(first_correlation_matrix, ani_maldi))
+                        output$ANIMALDI_legacy <- renderPlot(combined_plot_legacy(first_correlation_matrix_ordered, ani_maldi))
                     }
                 }
                 # enable the "Matrix 1 vs Matrix 2 (ordered on matrix 1)" tab
@@ -510,8 +519,11 @@ server <- function(input, output, session) {
 
                 # check if all columns are present in ANI matrix
                 col_matrix2 <- colnames(second_correlation_plot$corr)
+                #print(col_matrix2)
                 if (check_errors(col_matrix2, colnames(first_correlation_matrix), "MALDIANI_Error")) {
                     maldi_ani <- first_correlation_matrix[col_matrix2, col_matrix2]
+                    second_correlation_matrix_ordered <- second_correlation_matrix[col_matrix2,col_matrix2]
+                    #print(maldi_ani)
                     # save to session
                     session$userData$maldi_ani <- maldi_ani
                     if (input$legacymode == FALSE) {
@@ -521,13 +533,13 @@ server <- function(input, output, session) {
                             session$userData$MALDI_order_x <- MALDI_plot$x$layout$xaxis$ticktext
                             session$userData$MALDI_order_y <- MALDI_plot$x$layout$yaxis$ticktext
                         }
-                        output$MALDIANI <- renderPlotly(combined_plot(maldi_ani, second_correlation_matrix, session$userData$MALDI_order_x, session$userData$MALDI_order_y, metadata))
+                        output$MALDIANI <- renderPlotly(combined_plot(maldi_ani, second_correlation_matrix_ordered, session$userData$MALDI_order_x, session$userData$MALDI_order_y, metadata))
                     } else {
                         # update width and height of the plot based on input$scale (default 1000*1000 with scale=1)
                         scale=input$scale
                         shinyjs::runjs(paste0("$('#MALDIANI_legacy').width(", scale, " * 1000)"))
                         shinyjs::runjs(paste0("$('#MALDIANI_legacy').height(", scale, " * 1000)"))
-                        output$MALDIANI_legacy <- renderPlot(combined_plot_legacy(maldi_ani, second_correlation_matrix))
+                        output$MALDIANI_legacy <- renderPlot(combined_plot_legacy(maldi_ani, second_correlation_matrix_ordered))
                     }
                 }
                 # enable the "Matrix 2 vs Matrix 1 (ordered on matrix 2)" tab
@@ -545,7 +557,7 @@ server <- function(input, output, session) {
         },
         content = function(file) {
             tmpdir <- tempdir()
-            print(tmpdir)
+            #print(tmpdir)
             single_plot(session$userData$first_correlation_matrix, session$userData$metadata, paste0(tmpdir, "/ANI.html"))
             file.copy(paste0(tmpdir, "/ANI.html"), file)
         }

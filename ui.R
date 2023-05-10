@@ -88,7 +88,10 @@ ui <- fluidPage(
                                 border: 1px solid black;
                                 padding:5px
                               }
-                              "))),
+                              ")),
+                tags$script(src = "https://cdn.plot.ly/plotly-2.14.0.min.js"),
+              tags$script(src = "custom_plotly.js")
+              ),
     titlePanel("Correlation analysis"),
     # Sidebar with a slider input for number of bins
     sidebarLayout(
@@ -254,6 +257,7 @@ ui <- fluidPage(
                 id = "outputPanel",
                 tabPanel(
                     "Instructions",
+                    div(id="myDiv"),
                     h3("Correlation analysis tool"),
                     div("The input should be provided in the form of an xlsx file.
            The file should contain the data in the following format:"),
