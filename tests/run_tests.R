@@ -255,4 +255,47 @@ test("downloadable XLSX example round-trips all matrices and metadata", {
   stopifnot(grepl("SYNTHETIC", guide$Notes[1L]))
 })
 
+
+test("rank gaps compare pair order without subtracting incompatible units", {
+  example <- manir_load_example()
+  pair <- paired_values(example$first, example$second)
+  top <- pair_rank_gaps(pair, "similarity", "similarity", top = 10L)
+  stopifnot(nrow(top) == 10L, all(is.finite(top$rank_gap)),
+            all(top$rank_gap >= 0 & top$rank_gap <= 1),
+            all(diff(top$rank_gap) <= 0))
+  # Distances are reversed before comparing pair ranks, so negating all
+  # second-matrix scores and marking them as distance changes no rank gaps.
+  reversed <- pair
+  reversed$data$second <- -reversed$data$second
+  alt <- pair_rank_gaps(reversed, "similarity", "distance", top = 10L)
+  stopifnot(isTRUE(all.equal(top$rank_gap, alt$rank_gap)))
+  expect_error(pair_rank_gaps(pair, "invalid", "similarity"), "Unrecognized")
+})
+
+test("metadata colors keep their meaning across both matrix orders", {
+  example <- manir_load_example()
+  key <- ma_metadata_palette(example$metadata, "group")
+  reordered <- example$metadata[rev(rownames(example$metadata)), , drop = FALSE]
+  stopifnot(length(key) == 3L,
+            identical(key, ma_metadata_palette(reordered, "group")),
+            is.null(ma_metadata_palette(example$metadata, "missing")))
+  # The strip must live above the plot, not in the y-axis label margin.
+  p <- ma_interactive(example$first, metadata = example$metadata,
+                      group_column = "group")
+  stopifnot(length(p$x$layout$shapes) == nrow(example$first),
+            all(vapply(p$x$layout$shapes,
+                       function(x) identical(x$yref, "paper") && x$y0 > 1,
+                       logical(1L))))
+})
+
+test("every result tab includes contextual interpretation guidance", {
+  source("ui.R", local = TRUE)
+  view <- htmltools::renderTags(ui)$html
+  stopifnot(grepl("How to read this", view, fixed = TRUE),
+            grepl("Adjusted Wallace", view, fixed = TRUE),
+            grepl("rank differences", view, fixed = TRUE),
+            grepl("different measurement", view, fixed = TRUE),
+            grepl("metadata", view, fixed = TRUE))
+})
+
 cat("All MAniR regression tests passed.\n")
