@@ -32,12 +32,25 @@ server <- function(input, output, session) {
                        choices = c("None", sheets), selected = suggested)
   })
 
-  loaded <- shiny::eventReactive(input$visualize, {
-    shiny::req(input$first_file)
+  analyze_input <- function(example = FALSE) {
+    if (!example) shiny::req(input$first_file)
     shiny::withProgress(message = "Validating matrices and computing sample order",
                         value = 0, {
       tryCatch({
-        f <- input$first_file
+        if (example) {
+          demo <- manir_load_example()
+          a <- demo$first
+          b <- demo$second
+          meta <- demo$metadata
+          kind1 <- "similarity"
+          kind2 <- "similarity"
+          match_mode <- "strict"
+          shiny::incProgress(0.40)
+        } else {
+          kind1 <- input$kind1
+          kind2 <- input$kind2
+          match_mode <- input$match_mode
+          f <- input$first_file
         wb1 <- if (is_excel(f)) openxlsx::loadWorkbook(f$datapath) else NULL
         a <- read_matrix_input(f$datapath,
            sheet = if (is_excel(f)) input$first_sheet else NULL,
@@ -78,11 +91,12 @@ server <- function(input, output, session) {
         } else if (!is.null(input$metadata_file) && !is_excel(fmeta)) {
           meta <- read_metadata_input(fmeta$datapath, format = fmeta$name)
         }
-        if (!is.null(meta) && !all(colnames(a) %in% rownames(meta)))
-          shiny::showNotification("Some matrix samples have no metadata.",
-                                  type = "warning", duration = 8)
+          if (!is.null(meta) && !all(colnames(a) %in% rownames(meta)))
+            shiny::showNotification("Some matrix samples have no metadata.",
+                                    type = "warning", duration = 8)
+        }
         explicit <- NULL
-        if (!is.null(input$order_file)) {
+        if (!example && !is.null(input$order_file)) {
           explicit <- trimws(readLines(input$order_file$datapath, warn = FALSE))
           explicit <- sub("[,\t].*$", "", explicit)
           explicit <- explicit[nzchar(explicit) & explicit != "sample_id"]
@@ -97,13 +111,14 @@ server <- function(input, output, session) {
           matrix_order(m, kind, cluster = isTRUE(input$cluster),
                        linkage = input$linkage)$ids
         }
-        order1 <- order_for(a, input$kind1)
+        order1 <- order_for(a, kind1)
         shiny::incProgress(0.30)
-        order2 <- if (!is.null(b)) order_for(b, input$kind2) else NULL
+        order2 <- if (!is.null(b)) order_for(b, kind2) else NULL
         shiny::incProgress(0.30)
         shiny::updateSelectInput(session, "metadata_column",
           choices = c("None" = "", if (!is.null(meta)) names(meta)),
-          selected = "")
+          selected = if (example && !is.null(meta) && "group" %in% names(meta))
+            "group" else "")
         shiny::showNotification(
           sprintf("Loaded %d isolates%s.", nrow(a),
                   if (!is.null(b)) paste0(" and ", nrow(b), " in matrix 2")
@@ -111,11 +126,12 @@ server <- function(input, output, session) {
           type = "message", duration = 4)
         list(first = a, second = b, metadata = meta,
              order1 = order1, order2 = order2,
-             matching = input$match_mode,
+             source = if (example) "synthetic example" else "uploaded files",
+             matching = match_mode,
              clustering_skipped = isTRUE(input$cluster) &&
                is.null(explicit) &&
                (nrow(a) > 2000L || (!is.null(b) && nrow(b) > 2000L)),
-             kind1 = input$kind1, kind2 = input$kind2,
+             kind1 = kind1, kind2 = kind2,
              linkage = input$linkage)
       }, error = function(e) {
         shiny::showNotification(conditionMessage(e), type = "error",
@@ -123,7 +139,18 @@ server <- function(input, output, session) {
         NULL
       })
     })
-  }, ignoreNULL = TRUE)
+  }
+  loaded <- shiny::reactiveVal(NULL)
+  shiny::observeEvent(input$visualize, {
+    loaded(analyze_input(example = FALSE))
+  })
+  shiny::observeEvent(input$load_example, {
+    loaded(analyze_input(example = TRUE))
+  })
+  output$download_example <- shiny::downloadHandler(
+    filename = function() "MAniR_synthetic_example.xlsx",
+    content = function(file) manir_write_example_workbook(file)
+  )
 
   data <- shiny::reactive({ shiny::req(loaded()); loaded() })
   has_two <- shiny::reactive(!is.null(data()$second))
@@ -182,6 +209,9 @@ server <- function(input, output, session) {
     d <- data()
     shiny::tagList(
       shiny::h3("Dataset overview"),
+      shiny::p(if (identical(d$source, "synthetic example"))
+        "Synthetic teaching dataset. These are fictional similarities, not measured biological results."
+        else "Uploaded dataset."),
       shiny::div(class = "metric", sprintf("Matrix 1: %s isolates",
                                            format(nrow(d$first), big.mark = ","))),
       if (!is.null(d$second))
