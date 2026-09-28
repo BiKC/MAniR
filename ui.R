@@ -1,13 +1,16 @@
 # MAniR: matrix comparison and scalable visualization.
 manir_guide <- function(lead, details = NULL) {
-  shiny::div(class = "reading-guide",
-    shiny::strong("How to read this"),
-    shiny::p(lead),
-    if (!is.null(details))
-      shiny::tags$details(
-        shiny::tags$summary("More explanation"),
-        shiny::p(details)
-      )
+  # Help stays one short line until opened, leaving the visualization visible.
+  preview <- strsplit(lead, "[.!?]")[[1L]][1L]
+  if (nchar(preview) > 108L) preview <- paste0(substr(preview, 1L, 105L), "...")
+  shiny::tags$details(class = "reading-guide",
+    shiny::tags$summary(shiny::strong("How to read this"),
+                        shiny::span(class = "guide-preview", preview)),
+    shiny::div(class = "guide-body",
+      shiny::p(lead),
+      if (!is.null(details))
+        shiny::tagList(shiny::strong("Further interpretation"), shiny::p(details))
+    )
   )
 }
 ui <- shiny::fluidPage(
@@ -39,98 +42,145 @@ ui <- shiny::fluidPage(
       .section-note { margin: 13px 0 8px; color: #3b5668; }
       .results-table { margin: 12px 0 20px; }
       .main-panel .btn { margin: 7px 7px 7px 0; }
-    "))
+    ")),
+    shiny::tags$link(rel = "stylesheet", type = "text/css",
+                     href = "workspace.css")
   ),
-  shiny::titlePanel("MAniR"),
-  shiny::p("Explore and compare pairwise similarity, correlation or distance matrices."),
+  shiny::div(class = "app-header",
+    shiny::h2("MAniR"),
+    shiny::span(class = "app-description",
+      "Compare pairwise similarities, correlations and distances")
+  ),
+  shiny::div(class = "workspace",
   shiny::sidebarLayout(
     shiny::sidebarPanel(width = 3,
-      shiny::div(class = "metric",
-        shiny::h4("Try an example"),
-        shiny::p("Explore 12 fictional isolates, two similarity matrices and sample metadata. No upload needed."),
-        shiny::actionButton("load_example", "Load example dataset",
-                             class = "btn-primary"),
-        shiny::tags$br(), shiny::tags$br(),
-        shiny::downloadButton("download_example", "Download example XLSX"),
-        shiny::p(class = "small-help",
-          "Synthetic data for demonstration, not real biological measurements.")
-      ),
-      shiny::uiOutput("active_analysis"),
-      shiny::hr(),
-      shiny::h4("Upload your data"),
-      shiny::p(class = "small-help",
-        "For very large matrices, CSV or RDS is preferable to Excel.
-         Import uses RAM for the matrix and temporary validation data."),
-      shiny::fileInput("first_file", "First matrix",
-                       accept = c(".xlsx", ".xlsm", ".csv", ".tsv", ".txt",
-                                  ".gz", ".rds")),
-      shiny::uiOutput("first_sheet_ui"),
-      shiny::fileInput("second_file", "Second matrix file (optional)",
-                       accept = c(".xlsx", ".xlsm", ".csv", ".tsv", ".gz", ".rds")),
-      shiny::uiOutput("second_sheet_ui"),
-      shiny::fileInput("metadata_file", "Separate metadata file (optional)",
-                       accept = c(".xlsx", ".csv", ".tsv", ".rds")),
-      shiny::uiOutput("metadata_sheet_ui"),
-      shiny::fileInput("order_file", "Optional sample order (one ID per line)",
-                       accept = c(".txt", ".csv", ".tsv")),
-      shiny::selectInput("kind1", "Matrix 1 represents",
-        choices = c("Similarity" = "similarity", "Correlation" = "correlation",
-                    "Distance" = "distance", "Unspecified" = "auto")),
-      shiny::selectInput("kind2", "Matrix 2 represents",
-        choices = c("Similarity" = "similarity", "Correlation" = "correlation",
-                    "Distance" = "distance", "Unspecified" = "auto")),
-      shiny::p(class = "small-help",
-        "Similarity: larger values mean closer samples. Distance: smaller values mean closer samples. Correlation ranges from -1 to +1; larger values indicate a more positive relationship."),
-      shiny::radioButtons("match_mode", "Compare samples",
-        choices = c("Require identical IDs" = "strict",
-                    "Shared isolates only" = "intersection"),
-        selected = "strict"),
-      shiny::actionButton("visualize", "Load and analyze", class = "btn-primary"),
-      shiny::p(class = "small-help",
-        "Matrix type, linkage and sample matching are applied when you load a dataset. Palette, annotation track and zoom controls can change the current view without reloading."),
-      shiny::hr(),
-      shiny::h4("Visualization"),
-      shiny::checkboxInput("cluster", "Cluster samples", value = TRUE),
-      shiny::selectInput("linkage", "Clustering linkage",
-        choices = c("Complete (historical default)" = "complete",
-                    "Average" = "average", "Single" = "single",
-                    "Ward D2" = "ward.D2"), selected = "complete"),
-      shiny::selectInput("palette", "Palette",
-        choices = c("RdBu", "BrBG", "PiYG", "PRGn", "PuOr", "RdYlBu",
-                    "Viridis", "YlOrRd", "Blues", "Greens", "Greys"),
-        selected = "RdBu"),
-      shiny::checkboxInput("zoom_enabled", "Zoom into a region in large matrices", FALSE),
-      shiny::numericInput("zoom_start", "First isolate index", 1, min = 1, step = 1),
-      shiny::numericInput("zoom_size", "Isolates in zoom region", 300,
-                          min = 10, max = 1000, step = 50),
-      shiny::checkboxInput("show_numbers", "Display cell numbers in small plots",
-                           value = FALSE),
-      shiny::checkboxInput("log_scale", "Logarithmic display scaling",
-                           value = FALSE),
-      shiny::selectInput("metadata_column", "Categorical annotation track",
-                         choices = c("None" = "")),
-      shiny::checkboxInput("comparable_scales",
-        "Both matrices measure the same quantity on the same scale",
-        value = FALSE),
-      shiny::p(class = "small-help",
-        "Check this only for directly comparable measurements, such as ANI from two sequencing runs. Do not check it for ANI percentages versus MALDI scores, even after normalizing the heatmap colors."),
-      shiny::helpText("For large matrices, plots use representative pixels. Numerical analyses and exports use original values unless stated otherwise."),
-      shiny::hr(),
-      shiny::h4("Statistical analysis"),
-      shiny::numericInput("max_pairs", "Maximum plotted/analyzed pairs",
-                          100000, min = 1000, max = 1000000, step = 1000),
-      shiny::numericInput("cluster_k", "Number of clusters to compare (k)", 3,
-                          min = 2, max = 100),
-      shiny::p(class = "small-help",
-        "Cut both dendrograms into k groups and compare membership. Changing k can change every agreement statistic."),
-      shiny::numericInput("permutations", "Mantel permutations", 999,
-                          min = 99, max = 9999),
-      shiny::actionButton("run_mantel", "Run Mantel test"),
-      shiny::p(class = "small-help",
-        "The Mantel test checks association between matrices by permuting whole isolate labels, not individual cells. It requires complete matrices and at most 400 shared isolates; its p-value is not a test of typing-method equivalence.")
+      shiny::div(class = "control-sidebar",
+        shiny::div(class = "sidebar-scroll",
+          shiny::div(class = "example-quick",
+            shiny::h4("Try MAniR with example data"),
+            shiny::p("12 synthetic isolates with ANI-like, MALDI-like and metadata matrices."),
+            shiny::actionButton("load_example", "Load example", class = "btn-primary"),
+            shiny::tags$details(
+              shiny::tags$summary("About the example / download"),
+              shiny::p("Synthetic demonstration data, not measured biological values."),
+              shiny::downloadButton("download_example", "Example workbook (.xlsx)")
+            )
+          ),
+          shiny::tags$details(class = "control-group", open = "open",
+            shiny::tags$summary("Upload matrices"),
+            shiny::div(class = "group-body",
+              shiny::fileInput("first_file", "Matrix 1",
+                accept = c(".xlsx", ".xlsm", ".csv", ".tsv", ".txt", ".gz", ".rds")),
+              shiny::uiOutput("first_sheet_ui"),
+              shiny::fileInput("second_file", "Matrix 2 (optional)",
+                accept = c(".xlsx", ".xlsm", ".csv", ".tsv", ".gz", ".rds")),
+              shiny::uiOutput("second_sheet_ui"),
+              shiny::fileInput("metadata_file", "Metadata (optional)",
+                accept = c(".xlsx", ".csv", ".tsv", ".rds")),
+              shiny::uiOutput("metadata_sheet_ui"),
+              shiny::fileInput("order_file", "Sample order (optional)",
+                accept = c(".txt", ".csv", ".tsv")),
+              shiny::selectInput("kind1", "Matrix 1 represents",
+                choices = c("Similarity" = "similarity", "Correlation" = "correlation",
+                            "Distance" = "distance", "Unspecified" = "auto")),
+              shiny::selectInput("kind2", "Matrix 2 represents",
+                choices = c("Similarity" = "similarity", "Correlation" = "correlation",
+                            "Distance" = "distance", "Unspecified" = "auto")),
+              shiny::radioButtons("match_mode", "Compare samples",
+                choices = c("Identical IDs" = "strict",
+                            "Shared isolates" = "intersection"),
+                selected = "strict"),
+              shiny::p(class = "small-help",
+                "Similarity: larger means closer. Distance: smaller means closer. Correlation is between -1 and 1.")
+            )
+          ),
+          shiny::tags$details(class = "control-group",
+            shiny::tags$summary("Analysis settings"),
+            shiny::div(class = "group-body",
+              shiny::checkboxInput("cluster", "Cluster samples on load", value = TRUE),
+              shiny::selectInput("linkage", "Clustering linkage",
+                choices = c("Complete (original default)" = "complete",
+                            "Average" = "average", "Single" = "single",
+                            "Ward D2" = "ward.D2"), selected = "complete"),
+              shiny::checkboxInput("comparable_scales",
+                "Same measurement and units in both matrices", value = FALSE),
+              shiny::p(class = "small-help",
+                "Only enable raw differences when measurements are directly comparable. ANI percentages and MALDI scores are different quantities."),
+              shiny::numericInput("max_pairs", "Maximum pairs to analyze",
+                100000L, min = 1000L, max = 1000000L, step = 1000L),
+              shiny::numericInput("permutations", "Mantel permutations",
+                999L, min = 99L, max = 9999L),
+              shiny::p(class = "small-help",
+                "Changing the matrix types, linkage, matching rule or clustering requires loading again. Display controls on the right update immediately.")
+            )
+          )
+        ),
+        shiny::div(class = "sidebar-footer",
+          shiny::actionButton("visualize", "Load and analyze uploaded files",
+                              class = "btn-primary"),
+          shiny::uiOutput("sidebar_status")
+        )
+      )
     ),
     shiny::mainPanel(width = 9,
       shiny::div(class = "main-panel",
+        shiny::div(class = "results-toolbar",
+          shiny::div(class = "toolbar-field",
+            shiny::selectInput("palette", "Colors",
+              choices = c("RdBu", "BrBG", "PiYG", "PRGn", "PuOr", "RdYlBu",
+                          "Viridis", "YlOrRd", "Blues", "Greens", "Greys"),
+              selected = "RdBu")
+          ),
+          shiny::div(class = "toolbar-field",
+            shiny::selectInput("metadata_column", "Annotation",
+              choices = c("None" = ""))
+          ),
+          shiny::div(class = "toolbar-field control-checkbox",
+            shiny::checkboxInput("show_numbers", "Show cell values", value = FALSE)
+          ),
+          shiny::conditionalPanel(
+            condition = "input.results_tab === 'Cluster comparison'",
+            shiny::div(class = "toolbar-field contextual",
+              shiny::numericInput("cluster_k", "Clusters (k)",
+                3L, min = 2L, max = 100L)
+            )
+          ),
+          shiny::conditionalPanel(
+            condition = "input.results_tab === 'Overview'",
+            shiny::div(class = "toolbar-field control-checkbox",
+              shiny::actionButton("run_mantel", "Run Mantel test",
+                                  class = "btn-default btn-sm")
+            )
+          ),
+          shiny::tags$details(class = "toolbar-more",
+            shiny::tags$summary("Display options"),
+            shiny::div(class = "toolbar-extra",
+              shiny::div(class = "toolbar-field control-checkbox",
+                shiny::checkboxInput("log_scale", "Log(1+x) color scaling",
+                  value = FALSE)
+              ),
+              shiny::div(class = "toolbar-field control-checkbox",
+                shiny::checkboxInput("zoom_enabled", "Zoom into large matrices",
+                  value = FALSE)
+              ),
+              shiny::conditionalPanel(
+                condition = "input.zoom_enabled",
+                shiny::div(class = "toolbar-field",
+                  shiny::numericInput("zoom_start", "First isolate",
+                    1L, min = 1L, step = 1L)
+                ),
+                shiny::div(class = "toolbar-field",
+                  shiny::numericInput("zoom_size", "Number of isolates",
+                    300L, min = 10L, max = 1000L, step = 50L)
+                )
+              )
+            )
+          ),
+          shiny::div(class = "toolbar-status",
+            shiny::uiOutput("active_analysis")
+          )
+        ),
+        shiny::div(class = "results-shell",
         shiny::tabsetPanel(id = "results_tab",
           shiny::tabPanel("Overview",
             manir_guide(
@@ -180,7 +230,9 @@ ui <- shiny::fluidPage(
               "Each dot is one distinct, unordered isolate pair. Its X position is the pair's value in matrix 1 and its Y position is the value for the same pair in matrix 2. Neither the diagonal nor mirrored duplicates are counted.",
               "An upward pattern suggests positive association, while points far from the main pattern merit closer inspection. Different units are allowed here: compare ranks or correlations, not the raw distance from a one-to-one line. Pairwise observations share isolates, so they are not statistically independent."),
             shiny::uiOutput("pairwise_intro"),
-            shiny::plotOutput("scatter", height = "520px"),
+            shiny::div(class = "plot-frame",
+              shiny::plotOutput("scatter", height = "100%")
+            ),
             shiny::h4("Pairs with the largest rank differences"),
             shiny::p(class = "small-help",
               "These are exploratory discrepancies in the relative ordering of pairs, not statistically significant outliers. A rank gap near 0 means the pair has a similar position among all evaluated pairs in both matrices. Orange rings mark up to five of these pairs in the scatterplot."),
@@ -224,7 +276,9 @@ ui <- shiny::fluidPage(
             shiny::downloadButton("download_settings", "Analysis settings (text)")
           )
         )
+        )
       )
     )
+  )
   )
 )
