@@ -13,6 +13,8 @@ Depends:
 Imports:
     shiny,
     plotly,
+    htmltools,
+    htmlwidgets,
     openxlsx,
     RColorBrewer
 Suggests:
