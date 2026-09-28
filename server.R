@@ -145,6 +145,7 @@ server <- function(input, output, session) {
     loaded(analyze_input(example = FALSE))
   })
   shiny::observeEvent(input$load_example, {
+    shiny::updateCheckboxInput(session, "comparable_scales", value = FALSE)
     loaded(analyze_input(example = TRUE))
   })
   output$download_example <- shiny::downloadHandler(
@@ -186,11 +187,23 @@ server <- function(input, output, session) {
     list(first = subset_if_needed(d$second, ids),
          second = subset_if_needed(d$first, ids))
   })
-  # Keep source matrices separate until a particular viewport is requested.
+  # A checkbox cannot make two fundamentally different measurement types
+  # subtractable. The bundled ANI/MALDI example is always protected.
+  can_difference <- shiny::reactive({
+    d <- data()
+    !is.null(d$second) && isTRUE(input$comparable_scales) &&
+      !identical(d$source, "synthetic example")
+  })
   diff_matrix <- shiny::reactive({
-    shiny::req(input$comparable_scales)
+    shiny::req(can_difference())
     combined_first()
   })
+  format_range <- function(m) {
+    values <- m[is.finite(m)]
+    if (!length(values)) return("no finite values")
+    sprintf("%s to %s", format(signif(min(values), 5L), trim = TRUE),
+            format(signif(max(values), 5L), trim = TRUE))
+  }
   visible_indices <- function(n) {
     ix <- if (isTRUE(input$zoom_enabled) && n > 300L) {
       start <- max(1L, min(n, as.integer(input$zoom_start)))
@@ -228,8 +241,10 @@ server <- function(input, output, session) {
            format(pair_data()$evaluated_pairs, big.mark = ","),
            format(pair_data()$total_pairs, big.mark = ","),
            pair_data()$seed)),
-      if (!is.null(d$second) && !input$comparable_scales)
-        shiny::p("The matrices may use different units. Pearson and Spearman correlations are reported; raw differences and error metrics are hidden.")
+      if (!is.null(d$second) && !can_difference())
+        shiny::p(if (identical(d$source, "synthetic example"))
+          "ANI percentages and MALDI spectral similarities have different units. Look at Pearson/Spearman association and rank gaps; direct differences are disabled for this example."
+          else "Direct differences are hidden until you confirm that the two matrices measure the same quantity in the same units.")
     )
   })
   output$agreement <- shiny::renderTable({
@@ -238,13 +253,17 @@ server <- function(input, output, session) {
     stats <- matrix_agreement(pp)
     data.frame(
       Measure = c("Valid isolate pairs", "Pearson r", "Spearman rho",
-                  if (input$comparable_scales) c("Mean absolute difference",
+                  if (can_difference()) c("Mean absolute difference",
                                                   "Root mean squared difference")),
       Value = c(stats$n, signif(stats$pearson, 5),
                 signif(stats$spearman, 5),
-                if (input$comparable_scales)
+                if (can_difference())
                   c(signif(stats$mae, 5), signif(stats$rmse, 5)))
     )
+  })
+  output$mantel_note <- shiny::renderUI({
+    shiny::p(class = "small-help",
+      "Optional Mantel test: click Run Mantel test in the sidebar. It permutes whole isolate labels to test matrix association. It does not demonstrate equal typing performance, and it cannot run on incomplete matrices or above 400 shared isolates.")
   })
   output$replicate_table <- shiny::renderTable({
     d <- data()
@@ -258,8 +277,47 @@ server <- function(input, output, session) {
   make_view <- function(prefix, source, name, combined = FALSE,
                         first_label = "Matrix 1", second_label = "Matrix 2",
                         is_difference = FALSE) {
+    if (!is_difference) {
+      output[[paste0(prefix, "_intro")]] <- shiny::renderUI({
+        m <- source()
+        d <- data()
+        if (combined) {
+          shiny::div(class = "section-note",
+            shiny::strong(sprintf("Upper triangle: %s (original range %s). ",
+                                  first_label, format_range(m$first))),
+            shiny::strong(sprintf("Lower triangle: %s (original range %s).",
+                                  second_label, format_range(m$second))),
+            shiny::p(class = "small-help",
+              "The common 0–1 color bar refers to separately normalized display colors, not a common measurement scale. A neutral diagonal separates the methods.")
+          )
+        } else {
+          kind <- if (prefix == "plot1") d$kind1 else d$kind2
+          shiny::p(class = "section-note",
+            sprintf("%s contains %d isolates. Original data range: %s. Input type: %s. Colors are rescaled for display; hover to see actual values.",
+                    name, nrow(m), format_range(m), kind))
+        }
+      })
+      output[[paste0(prefix, "_legend")]] <- shiny::renderUI({
+        d <- data()
+        field <- input$metadata_column
+        key <- ma_metadata_palette(d$metadata, field)
+        if (is.null(key)) return(NULL)
+        shiny::div(class = "metadata-key",
+          shiny::span(class = "key-title",
+                      sprintf("%s annotation:", field)),
+          lapply(names(key), function(group)
+            shiny::span(
+              shiny::span(class = "swatch",
+                          style = paste0("background-color:", unname(key[[group]]))),
+              group
+            )),
+          shiny::span(class = "small-help",
+            "(color track above the heatmap; not a similarity scale)")
+        )
+      })
+    }
     output[[paste0(prefix, "_ui")]] <- shiny::renderUI({
-      if (is_difference) shiny::req(input$comparable_scales)
+      if (is_difference) shiny::req(can_difference())
       m <- source()
       size <- if (combined || is_difference) nrow(m$first) else nrow(m)
       if (size <= 300L)
@@ -273,7 +331,7 @@ server <- function(input, output, session) {
       )
     })
     output[[paste0(prefix, "_interactive")]] <- plotly::renderPlotly({
-      if (is_difference) shiny::req(input$comparable_scales)
+      if (is_difference) shiny::req(can_difference())
       m <- source()
       size <- if (combined || is_difference) nrow(m$first) else nrow(m)
       shiny::req(size <= 300L)
@@ -289,7 +347,7 @@ server <- function(input, output, session) {
         metadata = meta, group_column = input$metadata_column)
     })
     output[[paste0(prefix, "_raster")]] <- shiny::renderPlot({
-      if (is_difference) shiny::req(input$comparable_scales)
+      if (is_difference) shiny::req(can_difference())
       m <- source()
       size <- if (combined || is_difference) nrow(m$first) else nrow(m)
       shiny::req(size > 300L)
@@ -326,7 +384,7 @@ server <- function(input, output, session) {
     }, res = 110)
     output[[paste0(prefix, "_cell")]] <- shiny::renderText({
       shiny::req(input[[paste0(prefix, "_click")]])
-      if (is_difference) shiny::req(input$comparable_scales)
+      if (is_difference) shiny::req(can_difference())
       m <- source()
       base <- if (combined || is_difference) m$first else m
       ix <- visible_indices(nrow(base))
@@ -356,22 +414,69 @@ server <- function(input, output, session) {
   make_view("difference", diff_matrix, "Matrix 1 minus matrix 2",
             is_difference = TRUE)
 
+  output$pairwise_intro <- shiny::renderUI({
+    shiny::req(has_two())
+    d <- data()
+    p <- pair_data()
+    axis1 <- if (identical(d$source, "synthetic example"))
+      "fictional ANI-like percentage" else paste("matrix 1", d$kind1)
+    axis2 <- if (identical(d$source, "synthetic example"))
+      "fictional MALDI-like similarity (0–1)" else paste("matrix 2", d$kind2)
+    shiny::p(class = "section-note",
+      sprintf("%s distinct pairs with a value in both matrices, of %s possible pairs. X = %s; Y = %s.%s",
+              format(p$valid_pairs, big.mark = ","),
+              format(p$total_pairs, big.mark = ","),
+              axis1, axis2,
+              if (p$sampled)
+                sprintf(" Evaluated a reproducible sample of %s pairs (seed %d).",
+                        format(p$evaluated_pairs, big.mark = ","), p$seed)
+              else " All pairs are included."))
+  })
   output$scatter <- shiny::renderPlot({
     shiny::req(has_two())
     p <- pair_data()
     d <- p$data
     shiny::validate(shiny::need(nrow(d) >= 2L,
       "At least two nonmissing sample pairs are needed."))
-    graphics::plot(d$first, d$second, pch = 16L,
-                   col = grDevices::adjustcolor("#305f86", alpha.f = 0.27),
-                   cex = 0.5, xlab = "Matrix 1", ylab = "Matrix 2",
+    current <- data()
+    first_label <- if (identical(current$source, "synthetic example"))
+      "Illustrative ANI (%)" else paste("Matrix 1 (", current$kind1, ")", sep = "")
+    second_label <- if (identical(current$source, "synthetic example"))
+      "Illustrative MALDI similarity (0–1)" else
+        paste("Matrix 2 (", current$kind2, ")", sep = "")
+    graphics::plot(d$first, d$second, pch = 19L,
+                   col = grDevices::adjustcolor("#305f86", alpha.f = 0.58),
+                   cex = 0.9, xlab = first_label, ylab = second_label,
                    main = sprintf("Distinct isolate pairs (n = %s%s)",
-                   format(nrow(d), big.mark = ","),
-                   if (p$sampled) ", sampled" else ""))
-    if (input$comparable_scales) graphics::abline(0, 1, lty = 2)
+                     format(nrow(d), big.mark = ","),
+                     if (p$sampled) ", sampled" else ""))
+    if (can_difference()) graphics::abline(0, 1, lty = 2, col = "#555555")
+    if (nrow(d) >= 3L) {
+      gap <- pair_rank_gaps(p, current$kind1, current$kind2, top = 5L)
+      key <- paste(d$sample_1, d$sample_2, sep = "|")
+      highlighted <- match(paste(gap$sample_1, gap$sample_2, sep = "|"), key)
+      graphics::points(d$first[highlighted], d$second[highlighted],
+                       pch = 1L, cex = 1.65, lwd = 1.5, col = "#c45a35")
+    }
+  })
+  output$rank_gaps <- shiny::renderTable({
+    shiny::req(has_two())
+    current <- data()
+    gap <- pair_rank_gaps(pair_data(), current$kind1, current$kind2, top = 10L)
+    if (!nrow(gap)) return(NULL)
+    names(gap) <- c("Isolate 1", "Isolate 2", "Matrix 1", "Matrix 2", "Rank gap")
+    gap
+  }, digits = 4, rownames = FALSE)
+  output$absolute_discrepancies_intro <- shiny::renderUI({
+    if (!can_difference()) return(NULL)
+    shiny::tagList(
+      shiny::h4("Largest absolute differences"),
+      shiny::p(class = "small-help",
+        "These raw differences are available only because the two matrices have been marked as directly comparable. Sort by their magnitude for descriptive inspection, not a significance test.")
+    )
   })
   output$discrepancies <- shiny::renderTable({
-    shiny::req(has_two(), input$comparable_scales)
+    shiny::req(has_two(), can_difference())
     d <- pair_data()$data
     d <- d[order(abs(d$difference), decreasing = TRUE), , drop = FALSE]
     utils::head(d, 20L)
@@ -388,6 +493,13 @@ server <- function(input, output, session) {
                         kind_b = data()$kind2, k = input$cluster_k,
                         linkage = data()$linkage)
   })
+  output$cluster_intro <- shiny::renderUI({
+    shiny::req(has_two())
+    d <- data()
+    shiny::p(class = "section-note",
+      sprintf("Clustering %d shared isolates independently in each matrix, using %d clusters and %s linkage. Change k in the sidebar to explore the stability of agreement.",
+              length(shared()$ids), input$cluster_k, d$linkage))
+  })
   output$cluster_summary <- shiny::renderTable({
     c <- concordance()
     data.frame(measure = c("Adjusted Rand index",
@@ -396,13 +508,50 @@ server <- function(input, output, session) {
                value = c(c$ari, c$adjusted_wallace_1_to_2,
                          c$adjusted_wallace_2_to_1))
   })
+  output$cluster_overlap <- shiny::renderTable({
+    x <- concordance()$contingency
+    overlap <- as.data.frame.matrix(x)
+    names(overlap) <- paste("Matrix 2 cluster", colnames(x))
+    overlap <- data.frame("Matrix 1 cluster" = rownames(x), overlap,
+                          check.names = FALSE, row.names = NULL)
+    overlap
+  }, rownames = FALSE)
   output$cluster_table <- shiny::renderTable({
-    utils::head(concordance()$assignments, 100L)
-  })
+    assignment <- utils::head(concordance()$assignments, 100L)
+    names(assignment) <- c("Isolate", "Matrix 1 cluster", "Matrix 2 cluster")
+    assignment
+  }, rownames = FALSE)
   output$metadata_preview <- shiny::renderTable({
     shiny::req(data()$metadata)
     utils::head(data()$metadata, 100L)
   }, rownames = TRUE)
+  output$difference_explainer <- shiny::renderUI({
+    d <- data()
+    if (is.null(d$second))
+      return(shiny::p(class = "section-note",
+        "Upload a second matrix, or load the example, before comparing pairs."))
+    if (identical(d$source, "synthetic example"))
+      return(shiny::div(class = "reading-guide",
+        shiny::strong("Unavailable for the example"),
+        shiny::p("The fictional ANI measurements are percentage-like (about 95–100), while the fictional MALDI similarities range from 0 to 1. These are different measurement types. The application deliberately blocks direct subtraction for this example. Use the pairwise rank-gap table or the two combined heatmaps instead.")))
+    if (!can_difference())
+      return(shiny::p(class = "section-note",
+        "To enable a difference map, confirm in the sidebar that both matrices measure the same quantity in the same units and were processed compatibly."))
+    shiny::p(class = "section-note",
+      "Difference = matrix 1 minus matrix 2 in original units. Zero is the neutral midpoint; positive and negative values appear on opposite sides. Colors are scaled symmetrically around zero, so hover or export the exact matrix for numerical comparisons.")
+  })
+  output$download_difference_ui <- shiny::renderUI({
+    if (!can_difference()) return(NULL)
+    shiny::downloadButton("download_difference", "Exact difference matrix CSV")
+  })
+  output$difference_download_notice <- shiny::renderUI({
+    d <- data()
+    if (!can_difference())
+      shiny::p(class = "small-help",
+        if (identical(d$source, "synthetic example"))
+          "The difference export is disabled for the mixed-unit example."
+        else "The difference export appears after you confirm comparable measurements and load both matrices.")
+  })
   output$metadata_note <- shiny::renderUI({
     shiny::req(data()$metadata)
     shiny::p("Showing up to 100 metadata rows. Choose a categorical metadata column in the sidebar to compare within-group and between-group matrix values.")
@@ -494,7 +643,7 @@ server <- function(input, output, session) {
   output$download_difference <- shiny::downloadHandler(
     filename = function() "MAniR_difference_matrix.csv",
     content = function(file) {
-      shiny::req(input$comparable_scales)
+      shiny::req(can_difference())
       m <- combined_first()
       # Full difference matrices are intentionally materialized only when
       # explicitly requested for export.
@@ -515,7 +664,8 @@ server <- function(input, output, session) {
         paste("Linkage:", d$linkage),
         paste("Color palette:", input$palette),
         paste("Log display scaling:", input$log_scale),
-        paste("Comparable units:", input$comparable_scales),
+        paste("Comparable units selected:", input$comparable_scales),
+        paste("Difference analysis permitted:", can_difference()),
         paste("Maximum analyzed pairs:", input$max_pairs),
         paste("Pair sampling seed:", 1L),
         paste("Mantel seed:", 1L),
