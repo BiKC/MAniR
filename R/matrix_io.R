@@ -142,8 +142,12 @@ match_matrices <- function(first, second, mode = c("strict", "intersection")) {
                  length(setdiff(ids1, ids2)), length(setdiff(ids2, ids1))))
   ids <- if (mode == "strict") ids1 else intersect(ids1, ids2)
   if (length(ids) < 2L) stop("At least two shared sample IDs are required.")
-  list(first = first[ids, ids, drop = FALSE],
-       second = second[ids, ids, drop = FALSE],
+  list(first = if (identical(ids, rownames(first)) &&
+                    identical(ids, colnames(first))) first
+               else first[ids, ids, drop = FALSE],
+       second = if (identical(ids, rownames(second)) &&
+                     identical(ids, colnames(second))) second
+                else second[ids, ids, drop = FALSE],
        ids = ids,
        only_first = setdiff(ids1, ids2),
        only_second = setdiff(ids2, ids1))
