@@ -1,631 +1,417 @@
-library("shiny")
-library("shinyjs")
-library("shinyBS")
-library("shinyWidgets")
-library("openxlsx")
-library("RColorBrewer")
-library("corrplot")
-library("periscope")
-library("heatmaply")
-library("plotly")
-
-
-# Define server logic required to draw a histogram
+# Session-local state: uploaded matrices are never placed in global caches.
 server <- function(input, output, session) {
+  is_excel <- function(file) {
+    !is.null(file) && tolower(tools::file_ext(file$name)) %in% c("xlsx", "xlsm")
+  }
+  output$first_sheet_ui <- shiny::renderUI({
+    if (!is_excel(input$first_file)) return(NULL)
+    sheets <- tryCatch(matrix_sheet_names(input$first_file$datapath),
+                       error = function(e) character())
+    shiny::selectInput("first_sheet", "First matrix worksheet",
+                       choices = sheets, selected = sheets[1L])
+  })
+  output$second_sheet_ui <- shiny::renderUI({
+    f <- if (!is.null(input$second_file)) input$second_file else input$first_file
+    if (!is_excel(f)) return(NULL)
+    sheets <- tryCatch(matrix_sheet_names(f$datapath),
+                       error = function(e) character())
+    suggested <- if (is.null(input$second_file) && length(sheets) > 1L)
+      sheets[2L] else "None"
+    shiny::selectInput("second_sheet", "Second matrix worksheet",
+                       choices = c("None", sheets), selected = suggested)
+  })
+  output$metadata_sheet_ui <- shiny::renderUI({
+    f <- if (!is.null(input$metadata_file)) input$metadata_file else input$first_file
+    if (!is_excel(f)) return(NULL)
+    sheets <- tryCatch(matrix_sheet_names(f$datapath),
+                       error = function(e) character())
+    suggested <- if (is.null(input$metadata_file) &&
+                     is.null(input$second_file) && length(sheets) > 2L)
+      sheets[3L] else "None"
+    shiny::selectInput("metadata_sheet", "Metadata worksheet",
+                       choices = c("None", sheets), selected = suggested)
+  })
 
-    sendCustomMessage <- function(id,msg) {
-        session$sendCustomMessage(id, msg)
-    }
-
-    debugStart <- function() {
-        # click on Run tha analysis on a sample file button and then click on Visualize the results
-        click("Samplefile")
-        # click on visualise but do this in setTimeout so that the sample file is loaded first using shinyjs
-        shinyjs::runjs("setTimeout(function(){
-            $('#visualize').click();
-        }, 500);")
-    }
-
-    # disable the tabPanels Matrix1, Matrix2
-    shinyjs::js$disableTab("Matrix\ 1")
-    shinyjs::js$disableTab("Matrix\ 2")
-    #Matrix 1 vs Matrix 2 (ordered on matrix 1)
-    shinyjs::js$disableTab("Matrix\ 1 vs Matrix\ 2\ (ordered\ on\ matrix\ 1)")
-    #Matrix 1 vs Matrix 2 (ordered on matrix 2)
-    shinyjs::js$disableTab("Matrix\ 1 vs Matrix\ 2\ (ordered\ on\ matrix\ 2)")
-
-    #debugStart()
-
-    getcolorscale <- function() {
-        if (input$cmode == "sequential") {
-            return(COL1(input$sequentialcolor, 200))
-        } else {
-            return(COL2(input$divergentcolor, 200))
+  loaded <- shiny::eventReactive(input$visualize, {
+    shiny::req(input$first_file)
+    shiny::withProgress(message = "Validating matrices and computing sample order",
+                        value = 0, {
+      tryCatch({
+        f <- input$first_file
+        wb1 <- if (is_excel(f)) openxlsx::loadWorkbook(f$datapath) else NULL
+        a <- read_matrix_input(f$datapath,
+           sheet = if (is_excel(f)) input$first_sheet else NULL,
+           workbook = wb1)
+        a <- validate_matrix(a, input$kind1)
+        shiny::incProgress(0.20)
+        f2 <- if (!is.null(input$second_file)) input$second_file else f
+        has_second <- !is.null(input$second_file) ||
+          (is_excel(f) && !is.null(input$second_sheet) &&
+           input$second_sheet != "None")
+        b <- NULL
+        if (has_second) {
+          if (is_excel(f2) && (is.null(input$second_sheet) ||
+                               input$second_sheet == "None"))
+            stop("Select a second matrix worksheet.")
+          wb2 <- if (!is.null(input$second_file) && is_excel(f2))
+            openxlsx::loadWorkbook(f2$datapath) else wb1
+          b <- read_matrix_input(f2$datapath,
+              sheet = if (is_excel(f2)) input$second_sheet else NULL,
+              workbook = wb2)
+          b <- validate_matrix(b, input$kind2)
+          # Match once for early actionable errors; avoid retaining copies.
+          shared_ids <- intersect(colnames(a), colnames(b))
+          if (input$match_mode == "strict" &&
+              !setequal(colnames(a), colnames(b)))
+            stop(sprintf("Matrices have %d and %d isolates; %d are shared. Select 'Shared isolates only' or fix the IDs.",
+                         nrow(a), nrow(b), length(shared_ids)))
+          if (length(shared_ids) < 2L) stop("At least two shared isolates are required.")
         }
-    }
-
-    single_plot_legacy <- function(data) {
-        par(
-            mar = c(input$labelcex + 1, 4.1, 4.1, 2.1),
-            xpd = TRUE
-        )
-        # single plot
-        corrplot.mixed(
-            data,
-            lower = "color",
-            lower.col = getcolorscale(),
-            upper = "number",
-            upper.col = getcolorscale(),
-            is.corr = FALSE,
-            order = "hclust",
-            diag = "n",
-            tl.col = "black",
-            number.cex = input$ncex,
-            tl.cex = input$tlcex,
-            number.digits = input$dec,
-            tl.pos = "lt",
-            cl.cex = input$clcex
-        )
-    }
-
-    single_plot <- function(data, metadata, file=NULL) {
-        heatmaply(
-            data,
-            col = getcolorscale(),
-            #dendrogram = input$dendrograms,
-            # input$dec is the number of decimal places
-            label_format_fun = function(...) format(..., digits = input$dec + 2),
-            # add number to each cell also with input$dec for decimals shown and center it but only if show_numbers is TRUE
-            cellnote = if (input$show_numbers) round(data, input$dec) else NULL,
-            #cellnote = round(data, input$dec),
-            cellnote_textposition = "middle center",
-            # dendrogram only on the side
-            show_dendrogram = c(input$dendrograms, FALSE),
-            # add title if input$add_title is TRUE
-            #main = if (input$add_title) input$title else "",
-            # hide colorbar if input$hide_colorbar is TRUE
-            hide_colorbar = input$hide_colorbar,
-            # if metadata is not NULL, add it to the heatmap as side colors (row only)
-            row_side_colors = if (!is.null(metadata)) metadata else NULL,
-            key = TRUE,
-            # if file is not NULL, save the heatmap to the file
-            file = if (!is.null(file)) file else NULL,
-            # use 1000 by 1000 if file is not NULL
-            width = if (!is.null(file)) 1000 else NULL,
-            height = if (!is.null(file)) 1000 else NULL,
-            # input$ncex describe the size of the numbers
-            cellnote_size = input$ncex * 10,
-            # add a little bit of margin to the top
-            margin = c(0, 0, 10, 0),
-        )
-    }
-
-    combined_plot_legacy <- function(data1, data2) {
-        par(
-            mar = c(input$labelcex + 1, 4.1, 4.1, 2.1),
-            oma = c(3 * input$labelcex, 0, 0, 3 * input$labelcex),
-            xpd = TRUE
-        )
-        corrplot(
-            data1,
-            is.corr = FALSE,
-            type = "upper",
-            #order = "hclust",
-            tl.col = "black",
-            method = "color",
-            col = getcolorscale(),
-            addgrid.col = "grey",
-            addCoef.col = "black",
-            number.cex = input$ncex,
-            number.digits = input$dec,
-            diag = TRUE,
-            tl.pos = "lt",
-            tl.cex = input$tlcex,
-            cl.cex = input$clcex
-        )
-        corrplot(
-            data2,
-            is.corr = FALSE,
-            type = "lower",
-            order = "original",
-            tl.col = "black",
-            method = "color",
-            col = getcolorscale(),
-            addgrid.col = "grey",
-            addCoef.col = "black",
-            number.cex = input$ncex,
-            number.digits = input$dec,
-            diag = FALSE,
-            tl.cex = input$tlcex,
-            tl.pos = "n",
-            cl.pos = "b",
-            cl.cex = input$clcex,
-            add = TRUE
-        )
-
-        # Add axis titles
-        mtext(
-            input$yas,
-            side = 4,
-            outer = TRUE,
-            line = input$labelcex,
-            cex = input$labelcex
-        )
-        mtext(
-            input$xas,
-            side = 1,
-            outer = TRUE,
-            line = input$labelcex,
-            cex = input$labelcex
-        )
-    }
-
-    combined_plot <- function(data1, data2, order_x, order_y, metadata, file=NULL) {
-        data1 <- as.data.frame(data1)
-        data2 <- as.data.frame(data2)
-        # reorder the data
-        data1 <- data1[order_x, order_y]
-        data2 <- data2[order_x, order_y]
-        # make a copy of data1
-        combined_data <- data1
-        # replace lower triangle with data2
-        combined_data[lower.tri(combined_data)] <- data2[lower.tri(data2)]
-        combined_data <- as.matrix(combined_data)
-
-        # create a copy of the data as original_data
-        original_data <- combined_data
-
-        if (input$logscale) {
-            # scale upper triangle between 0 and 1
-            combined_data[upper.tri(combined_data)] <- (log(combined_data[upper.tri(combined_data)]) - min(log(combined_data[upper.tri(combined_data)]))) / (max(log(combined_data[upper.tri(combined_data)])) - min(log(combined_data[upper.tri(combined_data)])))
-            # scale lower triangle between 0 and 1
-            combined_data[lower.tri(combined_data)] <- (log(combined_data[lower.tri(combined_data)]) - min(log(combined_data[lower.tri(combined_data)]))) / (max(log(combined_data[lower.tri(combined_data)])) - min(log(combined_data[lower.tri(combined_data)])))
-        } else {
-            # scale upper triangle between 0 and 1
-            combined_data[upper.tri(combined_data)] <- (combined_data[upper.tri(combined_data)] - min(combined_data[upper.tri(combined_data)])) /
-                (max(combined_data[upper.tri(combined_data)]) - min(combined_data[upper.tri(combined_data)]))
-            # scale lower triangle between 0 and 1
-            combined_data[lower.tri(combined_data)] <- (combined_data[lower.tri(combined_data)] - min(combined_data[lower.tri(combined_data)])) /
-                (max(combined_data[lower.tri(combined_data)]) - min(combined_data[lower.tri(combined_data)]))
+        shiny::incProgress(0.20)
+        meta <- NULL
+        fmeta <- if (!is.null(input$metadata_file))
+          input$metadata_file else f
+        if (is_excel(fmeta) && !is.null(input$metadata_sheet) &&
+            input$metadata_sheet != "None") {
+          wbm <- if (!is.null(input$metadata_file))
+            openxlsx::loadWorkbook(fmeta$datapath) else wb1
+          meta <- read_metadata_input(fmeta$datapath,
+                                       input$metadata_sheet, wbm)
+        } else if (!is.null(input$metadata_file) && !is_excel(fmeta)) {
+          meta <- read_metadata_input(fmeta$datapath)
         }
-        # make the diagonal 1
-        diag(combined_data) <- 1
-        # create custom hovertext. Include the original value and which matrix it came from (input$yas or input$xas)
-        custom_text <- paste0(
-            "Original value:",
-            round(original_data, input$dec),
-            "<br>",
-            "Matrix:",
-            ifelse(upper.tri(original_data), input$yas, input$xas)
-            )
-
-        # make it a matrix
-        custom_text <- matrix(custom_text, nrow = nrow(original_data), ncol = ncol(original_data))
-
-        # transpose the data (both combined_data and original_data)
-        combined_data <- t(combined_data)
-        original_data <- t(original_data)
-
-        # flip rows of both
-        combined_data <- combined_data[rev(1:nrow(combined_data)), ]
-        original_data <- original_data[rev(1:nrow(original_data)), ]
-
-        # same for custom_text
-        custom_text <- t(custom_text)
-        custom_text <- custom_text[rev(1:nrow(custom_text)), ]
-
-
-        #print(custom_text)
-
-        heatmaply(
-            combined_data,
-            col = getcolorscale(),
-            # input$dec is the number of decimal places
-            label_format_fun = function(...) format(..., digits = input$dec + 2),
-            # add number to each cell also with input$dec for decimals shown and center it but only if show_numbers is TRUE
-            cellnote = if (input$show_numbers) round(original_data, input$dec) else NULL,
-            #cellnote = round(original_data, input$dec),
-            cellnote_textposition = "middle center",
-            # add the custom hovertext
-            custom_hovertext = custom_text,
-            # no dendrogram
-            show_dendrogram = c(FALSE, FALSE),
-            # do not reorder the rows or columns
-            Rowv = order_x,
-            Colv = order_y,
-            #revC = TRUE,
-            # add the axis titles
-            xlab = input$xas,
-            ylab = input$yas,
-            # hide colorbar
-            hide_colorbar = TRUE,
-            # add the metadata if it exists
-            row_side_colors = if (!is.null(metadata)) metadata else NULL,
-            # title if input$add_title is TRUE
-            #main = if (input$add_title) input$title else ""
-            # size of numbers in cells is set by input$ncex
-            cellnote_size = input$ncex*10,
-            # add file name if file is not NULL
-            file=file
-        )
-    }
-    check_errors <- function(col1, col2, output_id) {
-        if (!all(col1 %in% col2) || !all(col2 %in% col1)) {
-            # The page has an output_id without the _Error suffix that normally displays the output plot.
-            # We need to make sure this plot is not displayed when there is an error.
-            output[[gsub("_Error", "", output_id)]] <- NULL
-
-            not_in_matrix1 <- col2[!(col2 %in% col1)]
-            not_in_matrix2 <- col1[!(col1 %in% col2)]
-            output[[output_id]] <- renderUI({
-                div(class = "alert alert-danger", role = "alert", {
-                    tagList(
-                        h3("Error: The columns of the two matrices are not the same. Please check your input."),
-                        # print the missing columns
-                        h4("Missing columns in Matrix 1:"),
-                        # print only the missing columns in Matrix 1, not all differences
-                        p(paste(not_in_matrix1, collapse = ", ")),
-                        br(),
-                        h4("Missing columns in Matrix 2:"),
-                        # print only the missing columns in Matrix 2, not all differences
-                        p(paste(not_in_matrix2, collapse = ", "))
-                    )
-                })
-            })
-            return(FALSE)
+        if (!is.null(meta) && !all(colnames(a) %in% rownames(meta)))
+          shiny::showNotification("Some matrix samples have no metadata.",
+                                  type = "warning", duration = 8)
+        explicit <- NULL
+        if (!is.null(input$order_file)) {
+          explicit <- trimws(readLines(input$order_file$datapath, warn = FALSE))
+          explicit <- sub("[,\t].*$", "", explicit)
+          explicit <- explicit[nzchar(explicit) & explicit != "sample_id"]
+          if (anyDuplicated(explicit)) stop("The imported sample order has duplicate IDs.")
+          if (!any(explicit %in% colnames(a)))
+            stop("The imported sample order matches no samples.")
         }
-        return(TRUE)
-    }
-
-
-    output$downloadSampleFile <- downloadHandler(
-        filename = function() {
-            "sample_file.xlsx"
-        },
-        content = function(con) {
-            file.copy("www/moc_data.xlsx", con)
+        order_for <- function(m, kind) {
+          if (!is.null(explicit))
+            return(c(intersect(explicit, colnames(m)),
+                     setdiff(colnames(m), explicit)))
+          matrix_order(m, kind, cluster = isTRUE(input$cluster))$ids
         }
+        order1 <- order_for(a, input$kind1)
+        shiny::incProgress(0.30)
+        order2 <- if (!is.null(b)) order_for(b, input$kind2) else NULL
+        shiny::incProgress(0.30)
+        shiny::updateSelectInput(session, "metadata_column",
+          choices = c("None" = "", if (!is.null(meta)) names(meta)),
+          selected = "")
+        shiny::showNotification(
+          sprintf("Loaded %d isolates%s.", nrow(a),
+                  if (!is.null(b)) paste0(" and ", nrow(b), " in matrix 2")
+                  else ""),
+          type = "message", duration = 4)
+        list(first = a, second = b, metadata = meta,
+             order1 = order1, order2 = order2,
+             matching = input$match_mode,
+             clustering_skipped = isTRUE(input$cluster) &&
+               is.null(explicit) &&
+               (nrow(a) > 2000L || (!is.null(b) && nrow(b) > 2000L)),
+             kind1 = input$kind1, kind2 = input$kind2)
+      }, error = function(e) {
+        shiny::showNotification(conditionMessage(e), type = "error",
+                                duration = NULL)
+        NULL
+      })
+    })
+  }, ignoreInit = TRUE)
+
+  data <- shiny::reactive({ shiny::req(loaded()); loaded() })
+  has_two <- shiny::reactive(!is.null(data()$second))
+  ordered_first <- shiny::reactive({
+    d <- data()
+    d$first[d$order1, d$order1, drop = FALSE]
+  })
+  ordered_second <- shiny::reactive({
+    d <- data()
+    shiny::req(d$second)
+    d$second[d$order2, d$order2, drop = FALSE]
+  })
+  shared <- shiny::reactive({
+    d <- data()
+    shiny::req(d$second)
+    match_matrices(d$first, d$second, d$matching)
+  })
+  combined_first <- shiny::reactive({
+    d <- data()
+    both <- shared()
+    ids <- d$order1[d$order1 %in% both$ids]
+    list(first = d$first[ids, ids, drop = FALSE],
+         second = d$second[ids, ids, drop = FALSE])
+  })
+  combined_second <- shiny::reactive({
+    d <- data()
+    both <- shared()
+    ids <- d$order2[d$order2 %in% both$ids]
+    list(first = d$second[ids, ids, drop = FALSE],
+         second = d$first[ids, ids, drop = FALSE])
+  })
+  diff_matrix <- shiny::reactive({
+    shiny::req(input$comparable_scales)
+    x <- combined_first()
+    x$first - x$second
+  })
+  pair_data <- shiny::reactive({
+    m <- shared()
+    paired_values(m$first, m$second, max_pairs = input$max_pairs)
+  })
+
+  output$overview <- shiny::renderUI({
+    d <- data()
+    shiny::tagList(
+      shiny::h3("Dataset overview"),
+      shiny::div(class = "metric", sprintf("Matrix 1: %s isolates",
+                                           format(nrow(d$first), big.mark = ","))),
+      if (!is.null(d$second))
+        shiny::div(class = "metric", sprintf("Matrix 2: %s isolates; %s shared",
+           format(nrow(d$second), big.mark = ","),
+           format(length(shared()$ids), big.mark = ","))),
+      if (!is.null(d$second) && d$matching == "intersection")
+        shiny::p(sprintf("Excluded from comparison: %d only in matrix 1, %d only in matrix 2.",
+           length(shared()$only_first), length(shared()$only_second))),
+      if (d$clustering_skipped)
+        shiny::p("Clustering was skipped above 2,000 isolates. Import a sample order for large datasets."),
+      if (!is.null(d$second) && pair_data()$sampled)
+        shiny::p(sprintf("Pairwise statistics are based on %s of %s distinct possible pairs, sampled with seed %s.",
+           format(pair_data()$evaluated_pairs, big.mark = ","),
+           format(pair_data()$total_pairs, big.mark = ","),
+           pair_data()$seed)),
+      if (!is.null(d$second) && !input$comparable_scales)
+        shiny::p("The matrices may use different units. Pearson and Spearman correlations are reported; raw differences and error metrics are hidden.")
     )
-
-    wb <- reactive({
-        if (is.null(input$input_excel) == FALSE | input$Samplefile > 0) {
-            if (!is.null(input$input_excel)) {
-                loadWorkbook(input$input_excel$datapath)
-            } else if (input$Samplefile > 0) {
-                loadWorkbook("www/moc_data.xlsx")
-            }
-        } else {
-            return(NULL)
-        }
-    })
-
-
-    observeEvent(c(input$input_excel, input$Samplefile), {
-        if (is.null(input$input_excel) == FALSE | input$Samplefile > 0) {
-            sheets <- sheets(wb())
-            # sheet selection boxes
-            output$tab1 <- renderUI({
-                selectInput(
-                    "sheet1",
-                    HTML("Worksheet with first correlation <br>matrix"),
-                    choices = sheets,
-                    selected = sheets[1]
-                )
-            })
-            output$tab2 <- renderUI({
-                selectInput(
-                    "sheet2",
-                    "Worksheet with second correlation matrix (optional)",
-                    choices = c(sheets, "None"),
-                    selected = sheets[min(2, length(sheets))]
-                )
-            })
-            # metadata tab
-            output$tab3 <- renderUI({
-                selectInput(
-                    "sheet3",
-                    "Worksheet with metadata (optional)",
-                    choices = c(sheets, "None"),
-                    selected = if (length(sheets) > 2) sheets[3] else "None"
-                )
-            })
-
-            # Xaxis and Yaxis selection boxes + auto suggestion based on sheet names
-            output$Yaxis <- renderUI({
-                textInput("yas", label = "Name for matrix 1 (Y-axis on combined plot)", value = sheets[1])
-            })
-            output$Xaxis <- renderUI({
-                textInput("xas", label = "Name for matrix 2 (X-axis on combined plot)", value = sheets[min(2, length(sheets))])
-            })
-        }
-    })
-
-    observeEvent(input$sheet2, {
-        # if no second sheet is selected, don't use Xaxis/Yaxis
-        if (input$sheet2 == "None") {
-            output$Xaxis <- NULL
-            output$Yaxis <- NULL
-        }
-    })
-
-    # observe input$legacymode, if status is switched, click the visualize button
-    observeEvent(input$legacymode, {
-        # do not run if no file is uploaded
-        if (is.null(input$input_excel) == FALSE | input$Samplefile > 0) {
-            # if legacymode is switched on, click the visualize button
-            click("visualize")
-        }
-    })
-
-    # observe input$scale, if changed, click the visualize button
-    observeEvent(input$scale, {
-        # do not run if no file is uploaded
-        if (is.null(input$input_excel) == FALSE | input$Samplefile > 0) {
-            # if scale is changed, click the visualize button
-            click("visualize")
-        }
-    })
-
-
-
-
-    observeEvent(input$visualize, {
-        withProgress(message = "Making plots", value = 0, {
-            workbook <- wb()
-            # check that there is a workbook
-            if (is.null(workbook)) {
-                return()
-            }
-            disable(id = "visualize")
-
-            # if metadata is not None, read metadata
-            if (input$sheet3 != "None") {
-                metadata <- as.data.frame(readWorkbook(workbook, sheet = input$sheet3, colNames = TRUE, rowNames = TRUE))
-            } else {
-                metadata <- NULL
-            }
-
-            # save metadata to session
-            session$userData$metadata <- metadata
-
-            first_correlation_matrix <-
-                as.matrix(readWorkbook(workbook,
-                    colNames = TRUE,
-                    rowNames = TRUE,
-                    input$sheet1
-                ))
-            rownames(first_correlation_matrix) <- trimws(rownames(first_correlation_matrix))
-            colnames(first_correlation_matrix) <- trimws(colnames(first_correlation_matrix))
-
-            # adjust format with correct rownames and make matrix
-            first_correlation_plot <- corrplot.mixed(
-                first_correlation_matrix,
-                lower = "color",
-                upper = "number",
-                is.corr = FALSE,
-                order = "hclust",
-                diag = "n",
-                tl.col = "black",
-                number.cex = input$ncex,
-                tl.cex = input$tlcex,
-                tl.pos = "lt",
-            )
-            # save to session
-            session$userData$first_correlation_matrix <- first_correlation_matrix
-            # send first_correlation_matrix as custom message to the client together with the metadata
-            # this is used to make the plotly plot
-            sendCustomMessage("first_correlation_matrix", list(first_correlation_matrix, metadata))
-            # if not legacy, use plotly
-            if (input$legacymode == FALSE) {
-                output$ANI <- renderPlotly({
-                    ANI_plot <- single_plot(first_correlation_matrix, metadata)
-                    session$userData$ANI_order_x <- ANI_plot$x$layout$xaxis$ticktext
-                    session$userData$ANI_order_y <- ANI_plot$x$layout$yaxis$ticktext
-                    # also save the plotly plot to a png file
-                    #single_plot(first_correlation_matrix, metadata, paste0(session$userData$tmp_dir, "/ANI.png"))
-                    #session$userData$ANI_plot <- ANI_plot
-                    ANI_plot
-                    # export the plotly plot to a png file
-                    })
-            } else {
-                # update width and height of the plot based on input$scale (default 1000*1000 with scale=1)
-                scale=input$scale
-                shinyjs::runjs(paste0("$('#ANI_legacy').width(", scale, " * 1000)"))
-                shinyjs::runjs(paste0("$('#ANI_legacy').height(", scale, " * 1000)"))
-                output$ANI_legacy <- renderPlot(single_plot_legacy(first_correlation_matrix))
-            }
-
-            # enable the "Matrix 1" tab
-            shinyjs::js$enableTab("Matrix\ 1")
-            # click on the "Matrix 1" tab if we are on Instructions tab
-            shinyjs::js$goToMatrix1tab()
-            incProgress(1 / 4)
-
-            if (input$sheet2 != "None") {
-                ws <- readWorkbook(
-                        workbook,
-                        colNames = TRUE,
-                        rowNames = TRUE,
-                        sheet = input$sheet2
-                    )
-                rownames(ws) <- trimws(rownames(ws))
-                colnames(ws) <- trimws(colnames(ws))
-                # adjust format with correct rownames and make matrix
-                second_correlation_matrix <- as.matrix(ws)
-                second_correlation_plot <- corrplot.mixed(
-                    second_correlation_matrix,
-                    lower = "color",
-                    upper = "number",
-                    is.corr = FALSE,
-                    order = "hclust",
-                    diag = "n",
-                    tl.col = "black",
-                    number.cex = input$ncex,
-                    tl.cex = input$tlcex,
-                    tl.pos = "lt"
-                )
-
-                # save to session
-                session$userData$second_correlation_matrix <- second_correlation_matrix
-
-                # if not legacy, use plotly
-                if (input$legacymode == FALSE) {
-                    output$MALDI <- renderPlotly({
-                    MALDI_plot <- single_plot(second_correlation_matrix, metadata)
-                    session$userData$MALDI_order_x <- MALDI_plot$x$layout$xaxis$ticktext
-                    session$userData$MALDI_order_y <- MALDI_plot$x$layout$yaxis$ticktext
-                    # also save the plotly plot to a png file
-                    #single_plot(second_correlation_matrix, metadata, paste0(session$userData$tmp_dir, "/MALDI.png"))
-                    #session$userData$MALDI_plot <- MALDI_plot
-                    MALDI_plot})
-                } else {
-                    # update width and height of the plot based on input$scale (default 1000*1000 with scale=1)
-                    scale=input$scale
-                    shinyjs::runjs(paste0("$('#MALDI_legacy').width(", scale, " * 1000)"))
-                    shinyjs::runjs(paste0("$('#MALDI_legacy').height(", scale, " * 1000)"))
-                    output$MALDI_legacy <- renderPlot(single_plot_legacy(second_correlation_matrix))
-                }
-                # enable the "Matrix 2" tab
-                shinyjs::js$enableTab("Matrix\ 2")
-            }
-            incProgress(1 / 4)
-
-            ## mixed plots
-            if (input$sheet1 != "None" && input$sheet2 != "None") {
-                # New MALDI matrix with order of columns from ANI matrix
-
-                col_matrix1 <- colnames(first_correlation_plot$corr)
-                #print(col_matrix1)
-                # check if all columns are present in MALDI matrix
-                if (check_errors(col_matrix1, colnames(second_correlation_matrix), "ANIMALDI_Error")) {
-                    ani_maldi <- second_correlation_matrix[col_matrix1, col_matrix1]
-                    first_correlation_matrix_ordered <- first_correlation_matrix[col_matrix1,col_matrix1]
-                    #print(ani_maldi)
-                    # save to session
-                    session$userData$ani_maldi <- ani_maldi
-                    if (input$legacymode == FALSE) {
-                        output$ANIMALDI <- renderPlotly(combined_plot(first_correlation_matrix_ordered, ani_maldi, session$userData$ANI_order_x, session$userData$ANI_order_y, metadata))
-                    } else {
-                        # update width and height of the plot based on input$scale (default 1000*1000 with scale=1)
-                        scale=input$scale
-                        shinyjs::runjs(paste0("$('#ANIMALDI_legacy').width(", scale, " * 1000)"))
-                        shinyjs::runjs(paste0("$('#ANIMALDI_legacy').height(", scale, " * 1000)"))
-                        output$ANIMALDI_legacy <- renderPlot(combined_plot_legacy(first_correlation_matrix_ordered, ani_maldi))
-                    }
-                }
-                # enable the "Matrix 1 vs Matrix 2 (ordered on matrix 1)" tab
-                shinyjs::js$enableTab("Matrix\ 1\ vs\ Matrix\ 2\ (ordered\ on\ matrix\ 1)")
-                incProgress(1 / 4)
-
-                # check if all columns are present in ANI matrix
-                col_matrix2 <- colnames(second_correlation_plot$corr)
-                #print(col_matrix2)
-                if (check_errors(col_matrix2, colnames(first_correlation_matrix), "MALDIANI_Error")) {
-                    maldi_ani <- first_correlation_matrix[col_matrix2, col_matrix2]
-                    second_correlation_matrix_ordered <- second_correlation_matrix[col_matrix2,col_matrix2]
-                    #print(maldi_ani)
-                    # save to session
-                    session$userData$maldi_ani <- maldi_ani
-                    if (input$legacymode == FALSE) {
-                        # if session$userData$MALDI_order_x is NULL, we first need to render the MALDI plot, we don't need to do this if we already have the order :)
-                        if (is.null(session$userData$MALDI_order_x)) {
-                            MALDI_plot <- single_plot(second_correlation_matrix, metadata)
-                            session$userData$MALDI_order_x <- MALDI_plot$x$layout$xaxis$ticktext
-                            session$userData$MALDI_order_y <- MALDI_plot$x$layout$yaxis$ticktext
-                        }
-                        output$MALDIANI <- renderPlotly(combined_plot(maldi_ani, second_correlation_matrix_ordered, session$userData$MALDI_order_x, session$userData$MALDI_order_y, metadata))
-                    } else {
-                        # update width and height of the plot based on input$scale (default 1000*1000 with scale=1)
-                        scale=input$scale
-                        shinyjs::runjs(paste0("$('#MALDIANI_legacy').width(", scale, " * 1000)"))
-                        shinyjs::runjs(paste0("$('#MALDIANI_legacy').height(", scale, " * 1000)"))
-                        output$MALDIANI_legacy <- renderPlot(combined_plot_legacy(maldi_ani, second_correlation_matrix_ordered))
-                    }
-                }
-                # enable the "Matrix 2 vs Matrix 1 (ordered on matrix 2)" tab
-                shinyjs::js$enableTab("Matrix\ 1\ vs\ Matrix\ 2\ (ordered\ on\ matrix\ 2)")
-            incProgress(1 / 4)
-            }
-
-            enable(id = "visualize")
-        })
-    })
-    # download button # generate matrix1 (ANI) plot as html, add date and time to filename
-    output$download1 <- downloadHandler(
-        filename = function() {
-            paste0(input$yas,"-",Sys.Date(),".html")
-        },
-        content = function(file) {
-            tmpdir <- tempdir()
-            #print(tmpdir)
-            single_plot(session$userData$first_correlation_matrix, session$userData$metadata, paste0(tmpdir, "/ANI.html"))
-            file.copy(paste0(tmpdir, "/ANI.html"), file)
-        }
+  })
+  output$agreement <- shiny::renderTable({
+    shiny::req(has_two())
+    pp <- pair_data()
+    stats <- matrix_agreement(pp)
+    data.frame(
+      Measure = c("Valid isolate pairs", "Pearson r", "Spearman rho",
+                  if (input$comparable_scales) c("Mean absolute difference",
+                                                  "Root mean squared difference")),
+      Value = c(stats$n, signif(stats$pearson, 5),
+                signif(stats$spearman, 5),
+                if (input$comparable_scales)
+                  c(signif(stats$mae, 5), signif(stats$rmse, 5)))
     )
-    # repeat for matrix2 (MALDI)
-    output$download2 <- downloadHandler(
-        filename = function() {
-            paste0(input$xas,"-",Sys.Date(),".html")
-        },
-        content = function(file) {
-            tmpdir <- tempdir()
-            single_plot(session$userData$second_correlation_matrix, session$userData$metadata, paste0(tmpdir, "/MALDI.html"))
-            file.copy(paste0(tmpdir, "/MALDI.html"), file)
-        }
-    )
-    # repeat for matrix1 vs matrix2 (ordered on matrix 1)
-    output$download3 <- downloadHandler(
-        filename = function() {
-            paste0(input$yas,"_vs_",input$xas,"-",Sys.Date(),".html")
-        },
-        content = function(file) {
-            tmpdir <- tempdir()
-            combined_plot(session$userData$first_correlation_matrix, session$userData$ani_maldi, session$userData$ANI_order_x, session$userData$ANI_order_y, session$userData$metadata, paste0(tmpdir, "/ANIMALDI.html"))
-            file.copy(paste0(tmpdir, "/ANIMALDI.html"), file)
-        }
-    )
-    # repeat for matrix2 vs matrix1 (ordered on matrix 2)
-    output$download4 <- downloadHandler(
-        filename = function() {
-            paste0(input$xas,"_vs_",input$yas,"-",Sys.Date(),".html")
-        },
-        content = function(file) {
-            tmpdir <- tempdir()
-            combined_plot(session$userData$maldi_ani, session$userData$second_correlation_matrix, session$userData$MALDI_order_x, session$userData$MALDI_order_y, session$userData$metadata, paste0(tmpdir, "/MALDIANI.html"))
-            file.copy(paste0(tmpdir, "/MALDIANI.html"), file)
-        }
-    )
+  })
+  output$replicate_table <- shiny::renderTable({
+    d <- data()
+    shiny::req(d$metadata, nzchar(input$metadata_column))
+    replicate_summary(d$first, d$metadata, input$metadata_column,
+                      max_pairs = input$max_pairs)
+  })
 
-    # we have action buttons to check first if session$userData contains the data we need, if so we click button using shinyjs, otherwise return an alert message
-    # ids of buttons are action_download1, action_download2, action_download3, action_download4
-    observeEvent(input$action_download1, {
-        if (!is.null(session$userData$first_correlation_matrix)) {
-            shinyjs::runjs("$('#download1')[0].click()")
-        } else {
-            # alert message
-            createAlert(session=session, anchorId = "alert",content = "Please upload a matrix first or select a sheet for matrix 1",style = "danger")
-        }
+  # Each plot is calculated only when its tab is shown. Palette changes do
+  # not reload workbooks or recompute clustering.
+  make_view <- function(prefix, source, name, combined = FALSE,
+                        first_label = "Matrix 1", second_label = "Matrix 2",
+                        is_difference = FALSE) {
+    output[[paste0(prefix, "_ui")]] <- shiny::renderUI({
+      if (is_difference) shiny::req(input$comparable_scales)
+      m <- source()
+      size <- if (combined) nrow(m$first) else nrow(m)
+      if (size <= 300L)
+        plotly::plotlyOutput(paste0(prefix, "_interactive"),
+                             width = "100%", height = "750px")
+      else shiny::tagList(
+        shiny::p("Large-matrix raster preview. Click a cell to inspect its exact original value."),
+        shiny::plotOutput(paste0(prefix, "_raster"),
+                          width = "100%", height = "850px",
+                          click = paste0(prefix, "_click"))
+      )
     })
-    observeEvent(input$action_download2, {
-        if (!is.null(session$userData$second_correlation_matrix)) {
-            shinyjs::runjs("$('#download2')[0].click()")
-        } else {
-            createAlert(session=session, anchorId = "alert",content = "Please upload a matrix first or select a sheet for matrix 2",style = "danger")
-        }
+    output[[paste0(prefix, "_interactive")]] <- plotly::renderPlotly({
+      if (is_difference) shiny::req(input$comparable_scales)
+      m <- source()
+      size <- if (combined) nrow(m$first) else nrow(m)
+      shiny::req(size <= 300L)
+      ma_interactive(m, name = name, palette = input$palette,
+        show_numbers = input$show_numbers, combined = combined,
+        first_name = first_label, second_name = second_label,
+        log_scale = input$log_scale && !is_difference)
     })
-    observeEvent(input$action_download3, {
-        if (!is.null(session$userData$first_correlation_matrix) && !is.null(session$userData$ani_maldi)) {
-            shinyjs::runjs("$('#download3')[0].click()")
-        } else {
-            createAlert(session=session, anchorId = "alert",content = "Please upload a matrix first or select a sheet for matrix 1 and 2",style = "danger")
-        }
+    output[[paste0(prefix, "_raster")]] <- shiny::renderPlot({
+      if (is_difference) shiny::req(input$comparable_scales)
+      m <- source()
+      size <- if (combined) nrow(m$first) else nrow(m)
+      shiny::req(size > 300L)
+      if (combined) {
+        m <- ma_combined(m$first, m$second, input$log_scale)$values
+        normal <- TRUE
+      } else normal <- FALSE
+      graphics::par(mar = c(9, 9, 5, 2))
+      d <- data()
+      meta <- if (is_difference || !nzchar(input$metadata_column)) NULL
+              else d$metadata
+      ma_raster(m, palette = input$palette, title = name,
+                metadata = meta,
+                group_column = input$metadata_column, normalized = normal,
+                log_scale = input$log_scale && !is_difference)
+    }, res = 110)
+    output[[paste0(prefix, "_cell")]] <- shiny::renderText({
+      shiny::req(input[[paste0(prefix, "_click")]])
+      if (is_difference) shiny::req(input$comparable_scales)
+      m <- source()
+      original <- if (combined)
+        ma_combined(m$first, m$second, input$log_scale)$original else m
+      preview <- ma_preview(original)
+      click <- input[[paste0(prefix, "_click")]]
+      col <- as.integer(round(click$x))
+      row <- as.integer(nrow(preview$matrix) + 1 - round(click$y))
+      if (is.na(col) || is.na(row) || col < 1L ||
+          row < 1L || col > nrow(preview$matrix) ||
+          row > nrow(preview$matrix)) return("")
+      i <- preview$indices[row]
+      j <- preview$indices[col]
+      sprintf("%s / %s: %s%s", rownames(original)[i],
+              colnames(original)[j], format(original[i, j], digits = 9),
+              if (combined) if (i < j) paste0(" (", first_label, ")")
+              else if (i > j) paste0(" (", second_label, ")")
+              else " (diagonal)" else "")
     })
-    observeEvent(input$action_download4, {
-        if (!is.null(session$userData$second_correlation_matrix) && !is.null(session$userData$maldi_ani)) {
-            shinyjs::runjs("$('#download4')[0].click()")
-        } else {
-            createAlert(session=session, anchorId = "alert",content = "Please upload a matrix first or select a sheet for matrix 1 and 2",style = "danger")
-        }
-    })
+  }
+  make_view("plot1", ordered_first, "Matrix 1")
+  make_view("plot2", ordered_second, "Matrix 2")
+  make_view("combined1", combined_first, "Combined, ordered by matrix 1",
+            combined = TRUE)
+  make_view("combined2", combined_second, "Combined, ordered by matrix 2",
+            combined = TRUE, first_label = "Matrix 2", second_label = "Matrix 1")
+  make_view("difference", diff_matrix, "Matrix 1 minus matrix 2",
+            is_difference = TRUE)
 
+  output$scatter <- shiny::renderPlot({
+    shiny::req(has_two())
+    p <- pair_data()
+    d <- p$data
+    shiny::validate(shiny::need(nrow(d) >= 2L,
+      "At least two nonmissing sample pairs are needed."))
+    graphics::plot(d$first, d$second, pch = 16L,
+                   col = grDevices::adjustcolor("#305f86", alpha.f = 0.27),
+                   cex = 0.5, xlab = "Matrix 1", ylab = "Matrix 2",
+                   main = sprintf("Distinct isolate pairs (n = %s%s)",
+                   format(nrow(d), big.mark = ","),
+                   if (p$sampled) ", sampled" else ""))
+    if (input$comparable_scales) graphics::abline(0, 1, lty = 2)
+  })
+  output$discrepancies <- shiny::renderTable({
+    shiny::req(has_two(), input$comparable_scales)
+    d <- pair_data()$data
+    d <- d[order(abs(d$difference), decreasing = TRUE), , drop = FALSE]
+    utils::head(d, 20L)
+  }, digits = 5)
+
+  concordance <- shiny::reactive({
+    shiny::req(has_two())
+    m <- shared()
+    shiny::validate(shiny::need(nrow(m$first) <= 2000L,
+         "Cluster concordance is limited to 2,000 shared isolates."))
+    shiny::validate(shiny::need(input$cluster_k < nrow(m$first),
+         "Choose fewer clusters than shared isolates."))
+    cluster_concordance(m$first, m$second, kind_a = data()$kind1,
+                        kind_b = data()$kind2, k = input$cluster_k)
+  })
+  output$cluster_summary <- shiny::renderTable({
+    c <- concordance()
+    data.frame(measure = "Adjusted Rand index", value = c$ari)
+  })
+  output$cluster_table <- shiny::renderTable({
+    utils::head(concordance()$assignments, 100L)
+  })
+  output$metadata_preview <- shiny::renderTable({
+    shiny::req(data()$metadata)
+    utils::head(data()$metadata, 100L)
+  }, rownames = TRUE)
+  output$metadata_note <- shiny::renderUI({
+    shiny::req(data()$metadata)
+    shiny::p("Showing up to 100 metadata rows. Choose a categorical metadata column in the sidebar to compare within-group and between-group matrix values.")
+  })
+
+  mantel_result <- shiny::eventReactive(input$run_mantel, {
+    shiny::req(has_two())
+    tryCatch({
+      x <- shared()
+      matrix_mantel(x$first, x$second, permutations = input$permutations)
+    }, error = function(e) list(error = conditionMessage(e)))
+  })
+  output$mantel_result <- shiny::renderPrint({
+    shiny::req(mantel_result())
+    r <- mantel_result()
+    if (!is.null(r$error)) cat("Mantel test: ", r$error, "\n")
+    else cat(sprintf("Mantel test: r = %.5f, two-sided permutation p = %.5g; %d label permutations, seed %d.\n",
+                     r$observed, r$p_two_sided, r$permutations, r$seed))
+  })
+
+  output$download_first <- shiny::downloadHandler(
+    filename = function() "MAniR_matrix1.csv",
+    content = function(file) write_matrix_csv(data()$first, file))
+  output$download_second <- shiny::downloadHandler(
+    filename = function() "MAniR_matrix2.csv",
+    content = function(file) {
+      shiny::req(data()$second)
+      write_matrix_csv(data()$second, file)
+    })
+  output$download_pairs <- shiny::downloadHandler(
+    filename = function() "MAniR_pairwise_values.csv",
+    content = function(file) {
+      shiny::req(has_two())
+      utils::write.csv(pair_data()$data, file, row.names = FALSE)
+    })
+  output$download_clusters <- shiny::downloadHandler(
+    filename = function() "MAniR_clusters.csv",
+    content = function(file) utils::write.csv(
+      concordance()$assignments, file, row.names = FALSE))
+  output$download_rds <- shiny::downloadHandler(
+    filename = function() "MAniR_matrices.rds",
+    content = function(file) {
+      d <- data()
+      saveRDS(list(first = d$first, second = d$second,
+                   metadata = d$metadata, order1 = d$order1,
+                   order2 = d$order2, matching = d$matching,
+                   kinds = c(d$kind1, d$kind2)), file)
+    })
+  output$download_first_png <- shiny::downloadHandler(
+    filename = function() "MAniR_matrix1.png",
+    content = function(file)
+      ma_save_png(ordered_first(), file, palette = input$palette,
+                  title = "Matrix 1"))
+  output$download_combined_png <- shiny::downloadHandler(
+    filename = function() "MAniR_combined.png",
+    content = function(file) {
+      m <- combined_first()
+      ma_save_png(ma_combined(m$first, m$second, input$log_scale)$values,
+                  file, palette = input$palette,
+                  title = "Combined matrix, independently display-scaled",
+                  normalized = TRUE)
+    })
+  output$download_settings <- shiny::downloadHandler(
+    filename = function() "MAniR_analysis_settings.txt",
+    content = function(file) {
+      d <- data()
+      writeLines(c(
+        paste("MAniR generated:", Sys.time()),
+        paste("First matrix:", nrow(d$first), "isolates"),
+        paste("Second matrix:", if (is.null(d$second)) "None" else nrow(d$second)),
+        paste("Matrix kinds:", d$kind1, d$kind2),
+        paste("Sample matching:", d$matching),
+        paste("Cluster requested:", input$cluster),
+        paste("Cluster limit:", 2000L),
+        paste("Color palette:", input$palette),
+        paste("Log display scaling:", input$log_scale),
+        paste("Comparable units:", input$comparable_scales),
+        paste("Maximum analyzed pairs:", input$max_pairs),
+        paste("Pair sampling seed:", 1L),
+        paste("Mantel seed:", 1L),
+        paste("Session:", paste(utils::capture.output(utils::sessionInfo()),
+                               collapse = "\n"))
+      ), file)
+    })
 }
