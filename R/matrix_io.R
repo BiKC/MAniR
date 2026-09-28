@@ -68,10 +68,11 @@ validate_matrix <- function(x, kind = c("auto", "similarity", "correlation", "di
                  paste(head(only_rows, 10L), collapse = ", "),
                  paste(head(only_cols, 10L), collapse = ", ")))
   }
-  if (is.matrix(x) && is.numeric(x)) {
-    # Fast path: avoid coercing an already numeric N*N matrix into another
-    # full-size matrix during import.
-    m <- x
+  if ((is.matrix(x) && is.numeric(x)) ||
+      (is.data.frame(x) && all(vapply(x, is.numeric, logical(1L))))) {
+    # Fast path: common fread/openxlsx inputs contain numeric columns.
+    # Materialize a single numeric matrix rather than three dense copies.
+    m <- if (is.matrix(x)) x else as.matrix(x)
     dimnames(m) <- list(row_ids, col_ids)
   } else {
     original <- as.matrix(x)
