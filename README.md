@@ -27,7 +27,7 @@ For scripted validation, run `Rscript tests/run_tests.R`. For repeatable perform
 
 ## Built-in example
 
-Click **Load example dataset** in the application sidebar to explore MAniR
+Click **Load example** in the application sidebar to explore MAniR
 without uploading anything. The example contains 12 **fictional** isolates in
 three groups, with two precomputed symmetric similarity matrices:
 
@@ -42,7 +42,7 @@ scales are different, so leave "Both matrices use comparable numerical units"
 unchecked. All entries are illustrative and must not be used for biological
 inference or cited as measured data.
 
-Click **Download example XLSX** to obtain a workbook with `ANI`, `MALDI`,
+Open **About the example / download** and click **Example workbook (.xlsx)** to obtain a workbook with `ANI`, `MALDI`,
 `metadata` and `README` sheets. The equivalent editable CSV files are in
 `examples/`. To upload the workbook yourself, select ANI as the first sheet,
 MALDI as the second and metadata as the annotation sheet.
@@ -93,7 +93,7 @@ For two matrices, choose whether the isolate lists must match exactly or whether
 
 Smaller matrices (300 isolates or fewer) are displayed as interactive Plotly heatmaps with exact hover values. Number overlays are available for at most 70 isolates. For larger matrices, the default raster viewer displays up to 512 representative rows and columns rather than creating a browser annotation for every cell. This is a **representative overview**, not an aggregated matrix or a numerical substitute for the source data. Click a displayed cell to inspect the exact underlying matrix entry.
 
-Enable "Zoom into a region" and enter the first isolate index and the region size to inspect adjacent samples. When a region exceeds 512 isolates, it is itself reduced to a representative 512-by-512 display; choose a smaller region to inspect every cell.
+Open **Display options** in the Heatmaps toolbar, enable **Zoom into large matrices**, and enter the first isolate index and the region size to inspect adjacent samples. When a region exceeds 512 isolates, it is itself reduced to a representative 512-by-512 display; choose a smaller region to inspect every cell.
 
 The combined views use the first matrix above the diagonal and the second below the diagonal. One view uses the sample ordering from matrix 1; the other uses the ordering from matrix 2. Because ANI percentages and MALDI similarities can have different units, **each triangle is display-scaled independently**. Hover and click inspections, pairwise exports and RDS downloads retain the original numeric values. Log display scaling uses log(1+x) on nonnegative values (including a zero diagonal); negative correlations cannot be logarithmically displayed.
 
@@ -103,7 +103,7 @@ Clustering defaults to complete-linkage hierarchical clustering, matching the or
 
 The pairwise comparison tab plots values from corresponding unordered isolate pairs, excluding the diagonal. It reports Pearson and Spearman correlation coefficients. If the matrices truly use comparable units and the corresponding checkbox is enabled, it also reports mean absolute and root mean squared differences, a one-to-one reference line and the isolate pairs with the largest absolute differences. Treat these statistics as descriptive; isolate-pair observations are not statistically independent.
 
-To bound memory use, the pairwise tool examines up to 100,000 distinct pairs by default. When the full dataset exceeds this limit, it selects a reproducible random subset (fixed seed 1), discloses the number of evaluated pairs and marks the analysis as sampled. Downloaded pairwise values follow the same selection. Change the pair limit in the sidebar for a larger subset.
+To bound memory use, the pairwise tool examines up to 100,000 distinct pairs by default. When the full dataset exceeds this limit, it selects a reproducible random subset (fixed seed 1), discloses the number of evaluated pairs and marks the analysis as sampled. Downloaded pairwise values follow the same selection. Change **Max pairs** in the Pairwise comparison toolbar for a larger subset.
 
 The Mantel test permutes isolate labels jointly in one matrix. It reports a two-sided permutation p-value using `(extreme + 1) / (permutations + 1)`. The current implementation requires complete matched matrices with at most 400 isolates. The Mantel statistic measures matrix association; it does not establish that two typing methods produce equivalent classifications.
 
