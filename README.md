@@ -39,7 +39,7 @@ Smaller matrices (300 isolates or fewer) are displayed as interactive Plotly hea
 
 Enable "Zoom into a region" and enter the first isolate index and the region size to inspect adjacent samples. When a region exceeds 512 isolates, it is itself reduced to a representative 512-by-512 display; choose a smaller region to inspect every cell.
 
-The combined views use the first matrix above the diagonal and the second below the diagonal. One view uses the sample ordering from matrix 1; the other uses the ordering from matrix 2. Because ANI percentages and MALDI similarities can have different units, **each triangle is display-scaled independently**. Hover and click inspections, pairwise exports and RDS downloads retain the original numeric values. Log display scaling requires positive finite values.
+The combined views use the first matrix above the diagonal and the second below the diagonal. One view uses the sample ordering from matrix 1; the other uses the ordering from matrix 2. Because ANI percentages and MALDI similarities can have different units, **each triangle is display-scaled independently**. Hover and click inspections, pairwise exports and RDS downloads retain the original numeric values. Log display scaling uses log(1+x) on nonnegative values (including a zero diagonal); negative correlations cannot be logarithmically displayed.
 
 Clustering defaults to complete-linkage hierarchical clustering, matching the original corrplot linkage default. Large matrices above 2,000 isolates skip clustering by default to avoid excessive computation and memory use. Supply a precomputed ordering if desired. The original numerical matrices are not altered by clustering.
 
