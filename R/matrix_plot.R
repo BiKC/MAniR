@@ -134,7 +134,8 @@ ma_interactive <- function(m, name = "Matrix", palette = "RdBu",
     text = hover[n:1L, , drop = FALSE],
     type = "heatmap", colors = ma_colors(palette),
     zmin = 0, zmax = 1, hoverinfo = "text",
-    showscale = TRUE
+    showscale = TRUE,
+    colorbar = list(title = "Relative display color (0-1)")
   )
   if (!is.null(note)) {
     # Text labels only for small matrices; large labels overload the browser.
@@ -149,8 +150,7 @@ ma_interactive <- function(m, name = "Matrix", palette = "RdBu",
                               automargin = TRUE),
                  yaxis = list(title = "", automargin = TRUE),
                  shapes = shapes,
-                 margin = list(l = 95, b = 130, r = 30, t = 95),
-                 colorbar = list(title = "Relative display color"))
+                 margin = list(l = 95, b = 130, r = 30, t = 95))
 }
 
 # Representative-pixel preview: never use the reduced view for numerical
