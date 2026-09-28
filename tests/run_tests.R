@@ -176,4 +176,23 @@ test("large matrix preview is bounded and retains exact sampled values", {
   stopifnot(file.exists(png_file), file.info(png_file)$size > 0)
 })
 
+
+test("bundled XLSX example imports and preserves matrix pairing", {
+  file <- "www/moc_data.xlsx"
+  stopifnot(file.exists(file))
+  sheets <- openxlsx::getSheetNames(file)
+  stopifnot(length(sheets) >= 2L)
+  wb <- openxlsx::loadWorkbook(file)
+  a <- read_matrix_input(file, sheet = sheets[1L], workbook = wb)
+  b <- read_matrix_input(file, sheet = sheets[2L], workbook = wb)
+  matched <- match_matrices(a, b)
+  mixed <- ma_combined(matched$first, matched$second)
+  stopifnot(nrow(a) > 1L, nrow(b) > 1L,
+            identical(rownames(mixed$original), matched$ids),
+            isTRUE(all.equal(mixed$original[upper.tri(mixed$original)],
+                             matched$first[upper.tri(matched$first)])),
+            isTRUE(all.equal(mixed$original[lower.tri(mixed$original)],
+                             matched$second[lower.tri(matched$second)])))
+})
+
 cat("All MAniR regression tests passed.\n")
