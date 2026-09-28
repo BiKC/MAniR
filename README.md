@@ -8,7 +8,7 @@ This development branch is **MAniR 3.0 prerelease**. The historical application 
 
 ## Installation
 
-Install R 4.2 or later. In the repository directory, run:
+Install R 4.2 or later. The upload limit defaults to 1,024 MB and can be configured with the `MANIR_MAX_UPLOAD_MB` environment variable. Plan available RAM for at least the uploaded matrices plus working data, especially for two 10,000-isolate matrices. For those larger projects, RDS or CSV is preferable to Excel. In the repository directory, run:
 
 ```r
 install.packages(c("shiny", "plotly", "openxlsx", "RColorBrewer"))
@@ -17,7 +17,7 @@ install.packages(c("data.table", "fastcluster"))
 shiny::runApp(".")
 ```
 
-For scripted validation, run `Rscript tests/run_tests.R`. For repeatable performance measurements, run `Rscript benchmarks/benchmark.R` and retain the generated CSV. The optional `--smoke` flag runs a short check; `--large` includes 10,000-isolate data and requires substantial RAM.
+For scripted validation, run `Rscript tests/run_tests.R`. For repeatable performance measurements, run `Rscript benchmarks/benchmark.R` and retain the generated CSV. To compare representative original and new plotting pipelines, install the optional `corrplot` and `heatmaply` packages and run `Rscript benchmarks/compare_original.R`. The optional `--smoke` flag runs a short check; `--large` includes 10,000-isolate data and requires substantial RAM.
 
 ## Input formats
 
@@ -57,7 +57,7 @@ MAniR accepts **precomputed** MALDI-TOF, ANI, dDDH and other pairwise results. R
 
 ## Export and reproducibility
 
-The export tab provides exact input matrices as CSV, an RDS bundle containing both matrices, optional metadata and sample order, static PNGs and a text manifest of analysis settings and R session information. Pairwise comparison and cluster assignments have their own CSV exports. Large-image exports use representative raster views with up to 1,200 rows and columns, not an exact full-resolution image of a 10,000-isolate matrix.
+The export tab provides exact input matrices as CSV, an RDS bundle containing both matrices, optional metadata and sample order, static PNG, PDF and SVG files, a standalone interactive HTML preview and a text manifest of analysis settings and R session information. Pairwise comparison and cluster assignments have their own CSV exports. PDF and SVG contain individual vector cells for matrices with at most 150 isolates and a representative raster for larger inputs. Interactive HTML previews include at most 300 isolates and require Pandoc for self-contained HTML. Large-image exports use representative raster views with up to 1,200 rows and columns, not an exact full-resolution image of a 10,000-isolate matrix. Exact difference matrices can be exported as CSV when both datasets have comparable numerical units.
 
 To use MAniR reproducibly, archive the source matrices, the metadata, the settings manifest, the installed R package versions, the generated plots and the resulting tables. Never infer a biological cutoff from the normalized heatmap colors; inspect the original numeric values and justify cutoffs from the relevant study.
 
