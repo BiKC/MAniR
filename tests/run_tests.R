@@ -280,8 +280,8 @@ test("metadata colors keep their meaning across both matrix orders", {
             identical(key, ma_metadata_palette(reordered, "group")),
             is.null(ma_metadata_palette(example$metadata, "missing")))
   # The strip must live above the plot, not in the y-axis label margin.
-  p <- ma_interactive(example$first, metadata = example$metadata,
-                      group_column = "group")
+  p <- plotly::plotly_build(ma_interactive(
+    example$first, metadata = example$metadata, group_column = "group"))
   stopifnot(length(p$x$layout$shapes) == nrow(example$first),
             all(vapply(p$x$layout$shapes,
                        function(x) identical(x$yref, "paper") && x$y0 > 1,
