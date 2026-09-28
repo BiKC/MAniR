@@ -249,7 +249,8 @@ server <- function(input, output, session) {
       ma_interactive(m, name = name, palette = input$palette,
         show_numbers = input$show_numbers, combined = combined,
         first_name = first_label, second_name = second_label,
-        log_scale = input$log_scale && !is_difference)
+        log_scale = input$log_scale && !is_difference,
+        center_zero = is_difference)
     })
     output[[paste0(prefix, "_raster")]] <- shiny::renderPlot({
       if (is_difference) shiny::req(input$comparable_scales)
@@ -278,7 +279,8 @@ server <- function(input, output, session) {
               else d$metadata
       ma_raster(m, palette = input$palette, title = name,
                 metadata = meta, group_column = input$metadata_column,
-                normalized = normal, log_scale = input$log_scale && !is_difference)
+                normalized = normal, log_scale = input$log_scale && !is_difference,
+                center_zero = is_difference)
       if (length(ix) < size)
         graphics::mtext(if (isTRUE(input$zoom_enabled))
           sprintf("Zoom region; %d of %d isolates (starting at %d).",
@@ -421,10 +423,15 @@ server <- function(input, output, session) {
     filename = function() "MAniR_combined.png",
     content = function(file) {
       m <- combined_first()
-      ma_save_png(ma_combined(m$first, m$second, input$log_scale)$values,
-                  file, palette = input$palette,
-                  title = "Combined matrix, independently display-scaled",
-                  normalized = TRUE)
+      # Export no more than 1,200 representative isolates to bound memory,
+      # then calculate display normalization on that exact exported subset.
+      ix <- ma_preview(m$first, max_side = 1200L)$indices
+      a <- m$first[ix, ix, drop = FALSE]
+      b <- m$second[ix, ix, drop = FALSE]
+      shown <- ma_combined(a, b, input$log_scale)$values
+      ma_save_png(shown, file, palette = input$palette,
+                  title = sprintf("Combined matrix, %d of %d isolates", length(ix),
+                                  nrow(m$first)), normalized = TRUE)
     })
   output$download_settings <- shiny::downloadHandler(
     filename = function() "MAniR_analysis_settings.txt",
