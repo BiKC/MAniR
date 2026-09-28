@@ -38,3 +38,38 @@ the benchmark script is infrastructure, not evidence of a speedup.
 - Tested failure handling for bad/missing IDs, invalid scales and missing data.
 - Accurate documentation of large-dataset preview sampling limits.
 - Measured, repeated performance comparison before a release speed claim.
+
+
+## Implementation progress (September 28, 2026)
+Completed in the upgrade branch:
+- Reworked upload parsing and numeric validation, including preservation of
+  leading-zero sample identifiers, row/column alignment, strict/intersection
+  matching, missingness checks and blockwise symmetry validation.
+- Split calculation and rendering into reusable R modules; replaced repeated
+  clustering with a single selected sample order. Historical complete linkage
+  is the default; alternative linkage settings are available.
+- Added lazy Plotly views for up to 300 isolates and a region-zoomable,
+  representative raster viewer for larger datasets. Large combined plots
+  slice the viewport before assembling normalized matrices.
+- Added metadata color tracks, pairwise agreement summaries, a two-sided
+  isolate-permutation Mantel test, ARI and adjusted Wallace, and descriptive
+  within-group/between-group comparisons.
+- Added CSV/TSV/gzip/RDS imports, exact original matrix exports, PNG,
+  PDF/SVG and HTML preview exports, settings manifest, tests, Linux/Windows CI,
+  configurable upload size, and staged benchmarking scripts.
+- Opened draft PR #2 to keep the original main branch intact.
+
+Verification still outstanding:
+- No R interpreter is installed in the environment that authored these
+  changes, so the R test and Shiny integration suites cannot be reported
+  as passing. The workflow is committed but no completed GitHub Actions
+  job has been observed yet.
+- Run the bundled XLSX regression, both CI platforms, and at least three
+  repeated old/new benchmark comparisons on specified hardware.
+- Run large real datasets locally, record memory/time and inspect exact
+  values and visual ordering before release.
+- Record dependency versions from the validated environment, and produce
+  a lockfile with renv after a successful R run.
+
+Do not merge or tag this development branch as a validated release until
+these checks pass. The arXiv manuscript is outside this work scope.
