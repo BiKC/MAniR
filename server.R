@@ -123,7 +123,7 @@ server <- function(input, output, session) {
         NULL
       })
     })
-  }, ignoreInit = TRUE)
+  }, ignoreNULL = TRUE)
 
   data <- shiny::reactive({ shiny::req(loaded()); loaded() })
   has_two <- shiny::reactive(!is.null(data()$second))
