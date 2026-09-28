@@ -88,6 +88,10 @@ ISO_04 / ISO_05 have fictional ANI 97.22 and MALDI similarity 0.88.
 They illustrate the need to inspect individual discordant pairs.
 Do not interpret those numbers as measured bacterial biology.
 
+The downloaded pairwise CSV omits the raw difference column unless you have
+confirmed the matrices are directly comparable. The synthetic example always
+omits it because subtracting its measurements would be misleading.
+
 The app evaluates up to the selected maximum number of distinct pairs.
 For larger datasets, it uses a reproducible sample and reports the
 number of evaluated pairs. The rank gaps and displayed summary then
