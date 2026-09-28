@@ -1,12 +1,12 @@
 # Input and validation shared by the Shiny application and command-line tools.
 
-matrix_sheet_names <- function(path) {
-  ext <- tolower(tools::file_ext(path))
+matrix_sheet_names <- function(path, format = path) {
+  ext <- tolower(tools::file_ext(format))
   if (ext %in% c("xlsx", "xlsm")) return(openxlsx::getSheetNames(path))
   character()
 }
 
-read_matrix_input <- function(path, sheet = NULL, workbook = NULL) {
+read_matrix_input <- function(path, sheet = NULL, workbook = NULL, format = path) {
   ext <- tolower(tools::file_ext(path))
   if (ext %in% c("xlsx", "xlsm")) {
     if (is.null(sheet) || identical(sheet, "")) stop("Select a matrix worksheet.")
@@ -16,7 +16,7 @@ read_matrix_input <- function(path, sheet = NULL, workbook = NULL) {
   } else if (ext == "rds") {
     x <- readRDS(path)
   } else if (ext %in% c("csv", "tsv", "txt", "gz")) {
-    sep <- if (ext == "tsv" || grepl("\\.tsv\\.gz$", path, ignore.case = TRUE)) "\t" else ","
+    sep <- if (ext == "tsv" || grepl("\\.tsv\\.gz$", format, ignore.case = TRUE)) "\t" else ","
     if (requireNamespace("data.table", quietly = TRUE)) {
       x <- data.table::fread(path, sep = sep, data.table = FALSE,
                              check.names = FALSE, showProgress = FALSE)
@@ -84,7 +84,7 @@ validate_matrix <- function(x, kind = c("auto", "similarity", "correlation", "di
   m
 }
 
-read_metadata_input <- function(path, sheet = NULL, workbook = NULL) {
+read_metadata_input <- function(path, sheet = NULL, workbook = NULL, format = path) {
   ext <- tolower(tools::file_ext(path))
   if (ext %in% c("xlsx", "xlsm")) {
     if (is.null(sheet) || sheet == "None") return(NULL)
@@ -94,7 +94,7 @@ read_metadata_input <- function(path, sheet = NULL, workbook = NULL) {
   } else if (ext == "rds") {
     x <- readRDS(path)
   } else {
-    sep <- if (ext == "tsv" || grepl("\\.tsv\\.gz$", path, ignore.case = TRUE)) "\t" else ","
+    sep <- if (ext == "tsv" || grepl("\\.tsv\\.gz$", format, ignore.case = TRUE)) "\t" else ","
     x <- utils::read.table(path, sep = sep, header = TRUE, row.names = 1L,
                            check.names = FALSE, stringsAsFactors = FALSE)
   }
