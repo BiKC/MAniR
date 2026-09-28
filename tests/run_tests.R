@@ -300,12 +300,16 @@ test("metadata colors keep their meaning across both matrix orders", {
 
 test("workspace separates scrolling inputs from persistent live controls", {
   source("ui.R", local = TRUE)
-  html <- htmltools::renderTags(ui)$html
+  rendered <- htmltools::renderTags(ui)
+  html <- rendered$html
   for (expected in c("workspace", "control-sidebar", "sidebar-scroll",
                      "sidebar-footer", "results-toolbar", "results-shell",
-                     "Display options", "workspace.css")) {
-    stopifnot(grepl(expected, html, fixed = TRUE))
+                     "Display options")) {
+    if (!grepl(expected, html, fixed = TRUE))
+      stop("Missing expected workspace element: ", expected)
   }
+  # htmltools hoists stylesheets from the body into the document head.
+  stopifnot(grepl("workspace.css", rendered$head, fixed = TRUE))
   # Repeated Shiny input IDs would lead to controls updating the wrong value.
   for (id in c("palette", "metadata_column", "show_numbers", "cluster_k",
                "zoom_enabled", "visualize", "load_example")) {
