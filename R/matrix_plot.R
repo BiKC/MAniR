@@ -55,6 +55,22 @@ ma_combined <- function(first, second, log_scale = FALSE) {
        second_range = attr(b, "original_range"))
 }
 
+# Deterministic categorical colors so a group retains its color when a
+# different matrix ordering is selected. Large category lists are omitted
+# from the compact track; the full values remain in the metadata table.
+ma_metadata_palette <- function(metadata, group_column, max_categories = 12L) {
+  if (is.null(metadata) || is.null(group_column) ||
+      length(group_column) != 1L || is.na(group_column) ||
+      !nzchar(group_column) || !group_column %in% names(metadata))
+    return(NULL)
+  values <- as.character(metadata[[group_column]])
+  categories <- sort(unique(values[!is.na(values) & nzchar(values)]))
+  if (length(categories) == 0L || length(categories) > max_categories)
+    return(NULL)
+  stats::setNames(
+    grDevices::hcl.colors(length(categories), "Set 2"), categories)
+}
+
 # Plotly is intentionally limited to manageable interactive views; the
 # large-matrix renderer does not transmit hundreds of thousands of cell labels.
 ma_interactive <- function(m, name = "Matrix", palette = "RdBu",
@@ -85,23 +101,25 @@ ma_interactive <- function(m, name = "Matrix", palette = "RdBu",
                           digits = 8L, trim = TRUE))
   }
   shapes <- NULL
+  palette_key <- ma_metadata_palette(metadata, group_column)
   if (!is.null(metadata) && !is.null(group_column) &&
-      isTRUE(nzchar(group_column)) && group_column %in% names(metadata)) {
+      length(group_column) == 1L && !is.na(group_column) &&
+      nzchar(group_column) && group_column %in% names(metadata)) {
     groups <- as.character(metadata[match(ids, rownames(metadata)), group_column])
     group_text <- htmltools::htmlEscape(ifelse(is.na(groups), "Missing", groups))
     for (j in seq_len(n))
       hover[, j] <- paste0(hover[, j], "<br>",
                             htmltools::htmlEscape(group_column), ": ",
                             group_text)
-    classes <- unique(groups[!is.na(groups)])
-    if (length(classes) <= 30L && length(classes) > 0L) {
-      category_colors <- grDevices::hcl.colors(length(classes), "Set 2")
-      selected <- category_colors[match(groups, classes)]
+    if (!is.null(palette_key)) {
+      selected <- unname(palette_key[groups])
       selected[is.na(selected)] <- "#E5E5E5"
+      # Draw the metadata strip ABOVE the heatmap rather than on its left.
+      # That keeps the y-axis isolate IDs unobstructed.
       shapes <- lapply(seq_len(n), function(i) {
-        list(type = "rect", xref = "paper", yref = "y",
-             x0 = -0.035, x1 = -0.012,
-             y0 = n - i - 0.45, y1 = n - i + 0.45,
+        list(type = "rect", xref = "x", yref = "paper",
+             x0 = i - 1.45, x1 = i - 0.55,
+             y0 = 1.015, y1 = 1.045,
              fillcolor = selected[i], line = list(width = 0))
       })
     }
@@ -131,7 +149,8 @@ ma_interactive <- function(m, name = "Matrix", palette = "RdBu",
                               automargin = TRUE),
                  yaxis = list(title = "", automargin = TRUE),
                  shapes = shapes,
-                 margin = list(l = 130, b = 130, r = 30, t = 55))
+                 margin = list(l = 95, b = 130, r = 30, t = 95),
+                 colorbar = list(title = "Relative display color"))
 }
 
 # Representative-pixel preview: never use the reduced view for numerical
@@ -172,19 +191,16 @@ ma_raster <- function(m, palette = "RdBu", title = "",
   box()
   if (!is.null(metadata) && !is.null(group_column) && nzchar(group_column) &&
       group_column %in% colnames(metadata)) {
-    groups <- as.character(metadata[match(rownames(x), rownames(metadata)), group_column])
-    valid <- !is.na(groups)
-    levels <- unique(groups[valid])
-    annotation_colors <- grDevices::hcl.colors(max(1L, length(levels)), "Set 2")
-    fill <- annotation_colors[match(groups, levels)]
-    if (any(valid)) {
-      # The left-hand color strip represents the selected metadata field.
-      graphics::rect(0.06, n - which(valid) + 0.5, 0.40,
-                     n - which(valid) + 1.5, col = fill[valid], border = NA)
-      if (length(levels) <= 12L) {
-        graphics::legend("topright", legend = levels, fill = annotation_colors,
-                         cex = 0.55, bty = "n")
-      }
+    groups <- as.character(metadata[match(rownames(x), rownames(metadata)),
+                                    group_column])
+    key <- ma_metadata_palette(metadata, group_column)
+    if (!is.null(key)) {
+      fill <- unname(key[groups])
+      fill[is.na(fill)] <- "#E5E5E5"
+      # The annotation strip sits in the narrow gap outside the heatmap.
+      # Its legend is displayed in a separate panel above the Shiny plot.
+      graphics::rect(0.06, n - seq_len(n) + 0.5, 0.40,
+                     n - seq_len(n) + 1.5, col = fill, border = NA)
     }
   }
   if (preview$sampled)
