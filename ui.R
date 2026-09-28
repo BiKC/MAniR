@@ -19,6 +19,9 @@ ui <- shiny::fluidPage(
   shiny::sidebarLayout(
     shiny::sidebarPanel(width = 3,
       shiny::h4("Input data"),
+      shiny::p(class = "small-help",
+        "For very large matrices, CSV or RDS is preferable to Excel.
+         Import uses RAM for the matrix and temporary validation data."),
       shiny::fileInput("first_file", "First matrix",
                        accept = c(".xlsx", ".xlsm", ".csv", ".tsv", ".txt",
                                   ".gz", ".rds")),
