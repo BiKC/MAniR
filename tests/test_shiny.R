@@ -46,6 +46,10 @@ shiny::testServer(server, {
     nrow(demo$metadata) == 12L,
     identical(demo$matching, "strict")
   )
+  # Even when a checkbox is set, mixed-unit teaching data must not be
+  # subtracted or exported as a misleading difference matrix.
+  session$setInputs(comparable_scales = TRUE)
+  stopifnot(!can_difference())
   # An ordinary upload after the example must replace it without carrying
   # across the example metadata or second matrix.
   session$setInputs(first_file = file_info, visualize = 1)
@@ -53,9 +57,14 @@ shiny::testServer(server, {
   stopifnot(identical(own$source, "uploaded files"),
             nrow(own$first) == 4L, is.null(own$second),
             is.null(own$metadata))
+  session$setInputs(second_file = file_info, comparable_scales = TRUE,
+                    visualize = 2)
+  stopifnot(can_difference(),
+            nrow(shared()$first) == 4L)
   session$setInputs(load_example = 2)
   stopifnot(identical(loaded()$source, "synthetic example"),
-            nrow(loaded()$second) == 12L)
+            nrow(loaded()$second) == 12L, !can_difference(),
+            identical(loaded()$linkage, "complete"))
 })
 
 cat("Shiny upload and example reactive smoke tests passed.\n")
