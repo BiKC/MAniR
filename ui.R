@@ -243,8 +243,7 @@ ui <- shiny::fluidPage(
                   "This tab calculates matrix 1 minus matrix 2 for each shared isolate pair. Zero is the midpoint of the diverging color scale; opposite sides represent opposite signs.",
                   "A difference is interpretable only when both matrices measure the same quantity in the same units and have compatible preprocessing. Two different measurement types, such as ANI percentages and MALDI spectral scores, should be examined with rank comparisons instead."),
                 shiny::uiOutput("difference_explainer"), shiny::uiOutput("difference_ui"),
-                shiny::verbatimTextOutput("difference_cell")),
-
+                shiny::verbatimTextOutput("difference_cell"))
               )
             )
           ),
