@@ -15,7 +15,7 @@ ma_colors <- function(palette = "RdBu", n = 256L, reverse = FALSE) {
   grDevices::colorRampPalette(base)(n)
 }
 
-ma_scale <- function(x, log_scale = FALSE) {
+ma_scale <- function(x, log_scale = FALSE, center_zero = FALSE) {
   original <- x
   valid <- is.finite(x)
   if (!any(valid)) stop("There are no finite values to display.")
@@ -23,11 +23,17 @@ ma_scale <- function(x, log_scale = FALSE) {
     if (any(x[valid] <= 0)) stop("Log scaling requires strictly positive values.")
     x[valid] <- log(x[valid])
   }
-  rng <- range(x[valid])
-  if (diff(rng) == 0) {
-    x[valid] <- 0.5
+  if (center_zero) {
+    if (log_scale) stop("Zero-centered scaling cannot use logarithms.")
+    radius <- max(abs(x[valid]))
+    x[valid] <- if (radius == 0) 0.5 else 0.5 + 0.5 * x[valid] / radius
   } else {
-    x[valid] <- (x[valid] - rng[1L]) / diff(rng)
+    rng <- range(x[valid])
+    if (diff(rng) == 0) {
+      x[valid] <- 0.5
+    } else {
+      x[valid] <- (x[valid] - rng[1L]) / diff(rng)
+    }
   }
   x[!valid] <- NA_real_
   attr(x, "original_range") <- range(original[valid])
@@ -54,7 +60,7 @@ ma_combined <- function(first, second, log_scale = FALSE) {
 ma_interactive <- function(m, name = "Matrix", palette = "RdBu",
                            show_numbers = FALSE, combined = FALSE,
                            first_name = "Matrix 1", second_name = "Matrix 2",
-                           log_scale = FALSE) {
+                           log_scale = FALSE, center_zero = FALSE) {
   if (!requireNamespace("plotly", quietly = TRUE))
     stop("Install the plotly package for interactive plots.")
   n <- if (combined) nrow(m$first) else nrow(m)
@@ -65,7 +71,7 @@ ma_interactive <- function(m, name = "Matrix", palette = "RdBu",
     original <- norm$original
   } else {
     original <- m
-    z <- ma_scale(m, log_scale)
+    z <- ma_scale(m, log_scale, center_zero)
   }
   ids <- rownames(original)
   hover <- matrix("", nrow = n, ncol = n)
@@ -115,10 +121,10 @@ ma_preview <- function(m, max_side = 512L) {
 ma_raster <- function(m, palette = "RdBu", title = "",
                       max_side = 512L, log_scale = FALSE,
                       metadata = NULL, group_column = NULL,
-                      normalized = FALSE) {
+                      normalized = FALSE, center_zero = FALSE) {
   preview <- ma_preview(m, max_side)
   x <- preview$matrix
-  z <- if (normalized) x else ma_scale(x, log_scale)
+  z <- if (normalized) x else ma_scale(x, log_scale, center_zero)
   cols <- ma_colors(palette)
   values <- as.integer(1 + round(z * (length(cols) - 1L)))
   color_matrix <- matrix(NA_character_, nrow(z), ncol(z))
