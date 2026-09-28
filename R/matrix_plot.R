@@ -178,3 +178,56 @@ ma_save_png <- function(m, file, palette = "RdBu", title = "",
             normalized = normalized)
   invisible(file)
 }
+
+
+# Vector cells are useful for journal figures at modest dimensions. Rendering
+# millions of individual rectangles into PDF/SVG would be excessive, so larger
+# figures embed the same documented representative raster overview instead.
+ma_publication_plot <- function(m, palette = "RdBu", title = "",
+                                normalized = FALSE, vector_limit = 150L) {
+  n <- nrow(m)
+  if (n > vector_limit) {
+    ma_raster(m, palette = palette, title = title, max_side = 1200L,
+              normalized = normalized)
+    return(invisible(FALSE))
+  }
+  z <- if (normalized) m else ma_scale(m)
+  cols <- ma_colors(palette)
+  scaled <- as.integer(1 + round(z * (length(cols) - 1L)))
+  fill <- matrix("#E5E5E5", nrow(z), ncol(z))
+  good <- is.finite(z)
+  fill[good] <- cols[scaled[good]]
+  i <- rep.int(seq_len(n), times = n)
+  j <- rep.int(seq_len(n), each = n)
+  graphics::plot(NA_real_, xlim = c(0.5, n + 0.5),
+                 ylim = c(0.5, n + 0.5), xaxs = "i", yaxs = "i",
+                 asp = 1, axes = FALSE, xlab = "", ylab = "", main = title)
+  # One vector rectangle per cell, with original numeric values retained
+  # separately in CSV/RDS rather than embedded into rendered colors.
+  graphics::rect(j - 0.5, n - i + 0.5, j + 0.5, n - i + 1.5,
+                 col = fill[cbind(i, j)], border = NA)
+  at <- unique(as.integer(round(seq.int(1L, n, length.out = min(20L, n)))))
+  graphics::axis(1, at = at, labels = colnames(m)[at], las = 2, cex.axis = 0.6)
+  graphics::axis(2, at = n + 1L - at, labels = rownames(m)[at],
+                 las = 2, cex.axis = 0.6)
+  graphics::box()
+  invisible(TRUE)
+}
+
+ma_save_pdf <- function(m, file, palette = "RdBu", title = "",
+                        normalized = FALSE) {
+  grDevices::pdf(file, width = 11, height = 11, useDingbats = FALSE)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  graphics::par(mar = c(10, 10, 5, 2))
+  ma_publication_plot(m, palette, title, normalized)
+  invisible(file)
+}
+
+ma_save_svg <- function(m, file, palette = "RdBu", title = "",
+                        normalized = FALSE) {
+  grDevices::svg(file, width = 11, height = 11)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  graphics::par(mar = c(10, 10, 5, 2))
+  ma_publication_plot(m, palette, title, normalized)
+  invisible(file)
+}
