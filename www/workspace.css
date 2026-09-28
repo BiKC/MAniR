@@ -115,6 +115,30 @@ body { background: var(--manir-bg); color: var(--manir-ink); }
   padding: 8px 20px 24px;
 }
 .results-shell .tab-pane { max-width: 100%; }
+/* Five matrix views share a single primary tab to keep navigation short. */
+.results-shell .matrix-nav > .tabbable { display: block; }
+.results-shell .matrix-nav .nav-pills {
+  display: flex; flex-wrap: nowrap; gap: 3px; overflow-x: auto;
+  border-bottom: 1px solid var(--manir-border); padding: 0 0 9px;
+  margin-bottom: 8px; scrollbar-width: thin;
+}
+.results-shell .matrix-nav .nav-pills > li {
+  float: none; flex: 0 0 auto; margin: 0;
+}
+.results-shell .matrix-nav .nav-pills > li > a {
+  border: 1px solid var(--manir-border); border-radius: 6px;
+  background: #f8fbfc; color: #3c6076; font-size: 12px;
+  padding: 7px 11px; margin: 0;
+}
+.results-shell .matrix-nav .nav-pills > li.active > a {
+  border-color: #bfd6e1; background: #e9f4f9; color: #185c79; font-weight: 650;
+}
+.results-shell .matrix-nav .tab-content {
+  overflow: visible; flex: none; min-height: auto; padding: 0;
+}
+.matrix-nav .plot-frame { height: clamp(395px, calc(100dvh - 355px), 850px); }
+.pair-limit .shiny-input-container { width: 150px !important; }
+
 .results-shell .reading-guide {
   background: #f3f8fb; border: 1px solid #dae7ee;
   border-left: 3px solid #52859e; border-radius: 5px;
@@ -156,7 +180,7 @@ body { background: var(--manir-bg); color: var(--manir-ink); }
   .workspace .main-panel { overflow: visible; }
   .results-shell > .tabbable { display: block; }
   .results-shell .tab-content { overflow: visible; }
-  .plot-frame { height: min(68vh, 700px); min-height: 380px; }
+  .plot-frame, .matrix-nav .plot-frame { height: min(68vh, 700px); min-height: 380px; }
   .toolbar-status { text-align: left; max-width: none; }
 }
 @media (max-width: 600px) {
