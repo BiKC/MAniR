@@ -94,7 +94,8 @@ server <- function(input, output, session) {
           if (!is.null(explicit))
             return(c(intersect(explicit, colnames(m)),
                      setdiff(colnames(m), explicit)))
-          matrix_order(m, kind, cluster = isTRUE(input$cluster))$ids
+          matrix_order(m, kind, cluster = isTRUE(input$cluster),
+                       linkage = input$linkage)$ids
         }
         order1 <- order_for(a, input$kind1)
         shiny::incProgress(0.30)
@@ -114,7 +115,8 @@ server <- function(input, output, session) {
              clustering_skipped = isTRUE(input$cluster) &&
                is.null(explicit) &&
                (nrow(a) > 2000L || (!is.null(b) && nrow(b) > 2000L)),
-             kind1 = input$kind1, kind2 = input$kind2)
+             kind1 = input$kind1, kind2 = input$kind2,
+             linkage = input$linkage)
       }, error = function(e) {
         shiny::showNotification(conditionMessage(e), type = "error",
                                 duration = NULL)
@@ -353,7 +355,8 @@ server <- function(input, output, session) {
     shiny::validate(shiny::need(input$cluster_k < nrow(m$first),
          "Choose fewer clusters than shared isolates."))
     cluster_concordance(m$first, m$second, kind_a = data()$kind1,
-                        kind_b = data()$kind2, k = input$cluster_k)
+                        kind_b = data()$kind2, k = input$cluster_k,
+                        linkage = data()$linkage)
   })
   output$cluster_summary <- shiny::renderTable({
     c <- concordance()
@@ -479,6 +482,7 @@ server <- function(input, output, session) {
         paste("Sample matching:", d$matching),
         paste("Cluster requested:", input$cluster),
         paste("Cluster limit:", 2000L),
+        paste("Linkage:", d$linkage),
         paste("Color palette:", input$palette),
         paste("Log display scaling:", input$log_scale),
         paste("Comparable units:", input$comparable_scales),
