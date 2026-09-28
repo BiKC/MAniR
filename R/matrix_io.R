@@ -17,7 +17,7 @@ read_matrix_input <- function(path, sheet = NULL, workbook = NULL, format = path
     x <- readRDS(path)
   } else if (ext %in% c("csv", "tsv", "txt", "gz")) {
     sep <- if (ext == "tsv" || grepl("\\.tsv\\.gz$", format, ignore.case = TRUE)) "\t" else ","
-    if (requireNamespace("data.table", quietly = TRUE)) {
+    if (ext != "gz" && requireNamespace("data.table", quietly = TRUE)) {
       x <- data.table::fread(path, sep = sep, data.table = FALSE,
                              check.names = FALSE, showProgress = FALSE)
       if (ncol(x) < 2L) stop("The file needs an ID column and matrix columns.")
