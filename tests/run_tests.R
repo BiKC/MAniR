@@ -198,4 +198,15 @@ test("bundled XLSX example imports and preserves matrix pairing", {
                              matched$second[lower.tri(matched$second)])))
 })
 
+
+test("CSV import preserves leading zeroes in sample IDs", {
+  id <- c("001", "002", "003")
+  x <- matrix(c(1, .8, .5, .8, 1, .6, .5, .6, 1),
+              nrow = 3L, dimnames = list(id, id))
+  file <- tempfile(fileext = ".csv")
+  write_matrix_csv(x, file)
+  y <- read_matrix_input(file)
+  stopifnot(identical(rownames(y), id), identical(colnames(y), id))
+})
+
 cat("All MAniR regression tests passed.\n")
