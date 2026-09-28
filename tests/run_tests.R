@@ -298,6 +298,26 @@ test("metadata colors keep their meaning across both matrix orders", {
                        logical(1L))))
 })
 
+test("workspace separates scrolling inputs from persistent live controls", {
+  source("ui.R", local = TRUE)
+  html <- htmltools::renderTags(ui)$html
+  for (expected in c("workspace", "control-sidebar", "sidebar-scroll",
+                     "sidebar-footer", "results-toolbar", "results-shell",
+                     "Display options", "workspace.css")) {
+    stopifnot(grepl(expected, html, fixed = TRUE))
+  }
+  # Repeated Shiny input IDs would lead to controls updating the wrong value.
+  for (id in c("palette", "metadata_column", "show_numbers", "cluster_k",
+               "zoom_enabled", "visualize", "load_example")) {
+    found <- gregexpr(paste0('id="', id, '"'), html, fixed = TRUE)[[1L]]
+    stopifnot(length(found) == 1L, found[1L] != -1L)
+  }
+  css <- paste(readLines("www/workspace.css", warn = FALSE), collapse = "\n")
+  stopifnot(grepl("overflow-y: auto", css, fixed = TRUE),
+            grepl("max-width: 991px", css, fixed = TRUE),
+            grepl(".plot-frame", css, fixed = TRUE))
+})
+
 test("every result tab includes contextual interpretation guidance", {
   source("ui.R", local = TRUE)
   view <- htmltools::renderTags(ui)$html
