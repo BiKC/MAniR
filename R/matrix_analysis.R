@@ -216,3 +216,12 @@ pair_rank_gaps <- function(pairs, kind1 = "similarity",
   utils::head(d[c("sample_1", "sample_2", "first", "second", "rank_gap")],
               as.integer(top))
 }
+
+# Keep the exported table honest when the source measurements use different
+# units. The internal pairwise values still include the difference for
+# calculations that are explicitly enabled only for compatible measurements.
+pair_export_data <- function(pairs, comparable = FALSE) {
+  result <- pairs$data
+  if (!isTRUE(comparable)) result$difference <- NULL
+  result
+}
