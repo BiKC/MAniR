@@ -2,6 +2,7 @@
 source("R/matrix_io.R")
 source("R/matrix_analysis.R")
 source("R/matrix_plot.R")
+source("R/example_data.R")
 
 expect_error <- function(expr, pattern = NULL) {
   e <- tryCatch({force(expr); NULL}, error = function(e) conditionMessage(e))
@@ -214,6 +215,44 @@ test("CSV import preserves leading zeroes in sample IDs", {
   write_matrix_csv(x, file)
   y <- read_matrix_input(file)
   stopifnot(identical(rownames(y), id), identical(colnames(y), id))
+})
+
+
+test("built-in synthetic ANI/MALDI example is valid and includes metadata", {
+  demo <- manir_load_example()
+  stopifnot(
+    identical(dim(demo$first), c(12L, 12L)),
+    identical(dim(demo$second), c(12L, 12L)),
+    identical(dimnames(demo$first), dimnames(demo$second)),
+    all(diag(demo$first) == 100),
+    all(diag(demo$second) == 1),
+    identical(rownames(demo$metadata), rownames(demo$first)),
+    identical(names(demo$metadata), c("group", "source", "batch")),
+    length(unique(demo$metadata$group)) == 3L,
+    abs(demo$second["ISO_02", "ISO_03"] - 0.52) < 1e-12,
+    abs(demo$second["ISO_04", "ISO_05"] - 0.88) < 1e-12
+  )
+  values <- paired_values(demo$first, demo$second)
+  stopifnot(!values$sampled, values$valid_pairs == 66L)
+})
+
+test("downloadable XLSX example round-trips all matrices and metadata", {
+  demo <- manir_load_example()
+  path <- tempfile(fileext = ".xlsx")
+  manir_write_example_workbook(path)
+  stopifnot(file.exists(path), file.info(path)$size > 0)
+  stopifnot(identical(openxlsx::getSheetNames(path),
+                      c("ANI", "MALDI", "metadata", "README")))
+  first <- read_matrix_input(path, sheet = "ANI")
+  second <- read_matrix_input(path, sheet = "MALDI")
+  metadata <- read_metadata_input(path, sheet = "metadata")
+  stopifnot(
+    isTRUE(all.equal(first, demo$first, check.attributes = FALSE)),
+    isTRUE(all.equal(second, demo$second, check.attributes = FALSE)),
+    identical(metadata, demo$metadata)
+  )
+  guide <- openxlsx::read.xlsx(path, sheet = "README")
+  stopifnot(grepl("SYNTHETIC", guide$Notes[1L]))
 })
 
 cat("All MAniR regression tests passed.\n")
