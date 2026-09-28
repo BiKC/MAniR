@@ -29,6 +29,12 @@ test("matrix import reorders named rows to named columns", {
             isTRUE(all.equal(unname(imported), unname(m),
                              check.attributes = FALSE)))
 })
+test("numeric data frames take the exact-value matrix import path", {
+  data <- as.data.frame(m, check.names = FALSE)
+  result <- validate_matrix(data, "similarity")
+  stopifnot(isTRUE(all.equal(unname(result), unname(m),
+                            check.attributes = FALSE)))
+})
 test("matrix identifiers are trimmed without changing values", {
   dirty <- m
   rownames(dirty) <- paste0(" ", rownames(dirty), " ")
