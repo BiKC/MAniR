@@ -140,6 +140,19 @@ adjusted_rand <- function(labels_a, labels_b) {
   (nij - expected) / (maximum - expected)
 }
 
+
+adjusted_wallace <- function(labels_a, labels_b) {
+  if (length(labels_a) != length(labels_b) || length(labels_a) < 2L)
+    stop("Cluster assignments must refer to the same isolates.")
+  tab <- table(labels_a, labels_b)
+  pairs <- function(x) sum(x * (x - 1) / 2)
+  same_in_both <- pairs(tab)
+  same_in_first <- pairs(rowSums(tab))
+  expected_b <- pairs(colSums(tab)) / choose(length(labels_a), 2)
+  if (same_in_first == 0 || expected_b >= 1) return(NA_real_)
+  (same_in_both / same_in_first - expected_b) / (1 - expected_b)
+}
+
 cluster_concordance <- function(a, b, kind_a = "similarity",
                                 kind_b = "similarity", k = 3L,
                                 max_n = 2000L) {
@@ -152,6 +165,8 @@ cluster_concordance <- function(a, b, kind_a = "similarity",
   first <- stats::cutree(ca$tree, k = k)
   second <- stats::cutree(cb$tree, k = k)
   list(ari = adjusted_rand(first, second),
+       adjusted_wallace_1_to_2 = adjusted_wallace(first, second),
+       adjusted_wallace_2_to_1 = adjusted_wallace(second, first),
        assignments = data.frame(sample_id = rownames(a),
                                 first = unname(first[rownames(a)]),
                                 second = unname(second[rownames(a)])),
