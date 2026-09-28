@@ -112,8 +112,12 @@ test("cluster ordering and adjusted Rand index are reproducible", {
   stopifnot(identical(c1$ids, c2$ids),
             identical(sort(c1$ids), sort(ids)),
             adjusted_rand(c(1, 1, 2, 2), c(2, 2, 1, 1)) == 1)
+  stopifnot(abs(adjusted_wallace(c(1, 1, 2, 2),
+                                 c(2, 2, 1, 1)) - 1) < 1e-12)
   result <- cluster_concordance(m, m, k = 2)
   stopifnot(abs(result$ari - 1) < 1e-12,
+            abs(result$adjusted_wallace_1_to_2 - 1) < 1e-12,
+            abs(result$adjusted_wallace_2_to_1 - 1) < 1e-12,
             nrow(result$assignments) == 4L)
   skip <- matrix_order(m, max_cluster = 2L)
   stopifnot(isTRUE(skip$skipped), is.null(skip$tree))
