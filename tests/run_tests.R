@@ -107,7 +107,8 @@ test("scale handling preserves source matrices", {
   centered <- matrix(c(-3, -1, 0, 3), nrow = 2)
   stopifnot(isTRUE(all.equal(as.vector(ma_scale(centered,
              center_zero = TRUE)), c(0, 1/3, 0.5, 1))))
-  expect_error(ma_scale(matrix(c(0, 1, 2, 3), 2), TRUE), "positive")
+  stopifnot(all(is.finite(ma_scale(matrix(c(0, 1, 2, 3), 2), TRUE))))
+  expect_error(ma_scale(matrix(c(-1, 0, 1, 2), 2), TRUE), "nonnegative")
 })
 test("cluster ordering and adjusted Rand index are reproducible", {
   c1 <- matrix_order(m)
