@@ -57,7 +57,7 @@ ma_interactive <- function(m, name = "Matrix", palette = "RdBu",
                            log_scale = FALSE) {
   if (!requireNamespace("plotly", quietly = TRUE))
     stop("Install the plotly package for interactive plots.")
-  n <- nrow(m)
+  n <- if (combined) nrow(m$first) else nrow(m)
   if (n > 300L) stop("Use the raster renderer for matrices above 300 isolates.")
   if (combined) {
     norm <- ma_combined(m$first, m$second, log_scale)
@@ -129,7 +129,7 @@ ma_raster <- function(m, palette = "RdBu", title = "",
   pix <- grDevices::as.raster(color_matrix)
   n <- nrow(x)
   show_at <- unique(as.integer(round(seq(1, n, length.out = min(n, 16L)))))
-  plot(NA, xlim = c(0.5, n + 0.5), ylim = c(0.5, n + 0.5),
+  plot(NA, xlim = c(0, n + 0.5), ylim = c(0.5, n + 0.5),
        xaxs = "i", yaxs = "i", asp = 1, axes = FALSE,
        xlab = "", ylab = "", main = title)
   graphics::rasterImage(pix, 0.5, 0.5, n + 0.5, n + 0.5,
@@ -139,6 +139,23 @@ ma_raster <- function(m, palette = "RdBu", title = "",
   axis(2, at = n + 1L - show_at, labels = rownames(x)[show_at],
        las = 2, cex.axis = 0.55)
   box()
+  if (!is.null(metadata) && !is.null(group_column) && nzchar(group_column) &&
+      group_column %in% colnames(metadata)) {
+    groups <- as.character(metadata[match(rownames(x), rownames(metadata)), group_column])
+    valid <- !is.na(groups)
+    levels <- unique(groups[valid])
+    annotation_colors <- grDevices::hcl.colors(max(1L, length(levels)), "Set 2")
+    fill <- annotation_colors[match(groups, levels)]
+    if (any(valid)) {
+      # The left-hand color strip represents the selected metadata field.
+      graphics::rect(0.06, n - which(valid) + 0.5, 0.40,
+                     n - which(valid) + 1.5, col = fill[valid], border = NA)
+      if (length(levels) <= 12L) {
+        graphics::legend("topright", legend = levels, fill = annotation_colors,
+                         cex = 0.55, bty = "n")
+      }
+    }
+  }
   if (preview$sampled)
     mtext(sprintf("Representative view: %d of %d isolates. Inspect original values in the table.",
                   n, preview$full_n), side = 3, line = 0, cex = 0.75)
