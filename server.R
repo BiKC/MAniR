@@ -349,7 +349,11 @@ server <- function(input, output, session) {
   })
   output$cluster_summary <- shiny::renderTable({
     c <- concordance()
-    data.frame(measure = "Adjusted Rand index", value = c$ari)
+    data.frame(measure = c("Adjusted Rand index",
+                             "Adjusted Wallace (matrix 1 -> matrix 2)",
+                             "Adjusted Wallace (matrix 2 -> matrix 1)"),
+               value = c(c$ari, c$adjusted_wallace_1_to_2,
+                         c$adjusted_wallace_2_to_1))
   })
   output$cluster_table <- shiny::renderTable({
     utils::head(concordance()$assignments, 100L)
