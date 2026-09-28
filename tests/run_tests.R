@@ -174,6 +174,9 @@ test("large matrix preview is bounded and retains exact sampled values", {
   png_file <- tempfile(fileext = ".png")
   ma_save_png(big, png_file, max_side = 128)
   stopifnot(file.exists(png_file), file.info(png_file)$size > 0)
+  pdf_file <- tempfile(fileext = ".pdf")
+  ma_save_pdf(big[seq_len(20), seq_len(20)], pdf_file)
+  stopifnot(file.exists(pdf_file), file.info(pdf_file)$size > 0)
 })
 
 
