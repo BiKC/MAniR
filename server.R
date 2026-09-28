@@ -155,11 +155,20 @@ server <- function(input, output, session) {
     list(first = d$second[ids, ids, drop = FALSE],
          second = d$first[ids, ids, drop = FALSE])
   })
+  # Keep source matrices separate until a particular viewport is requested.
   diff_matrix <- shiny::reactive({
     shiny::req(input$comparable_scales)
-    x <- combined_first()
-    x$first - x$second
+    combined_first()
   })
+  visible_indices <- function(n) {
+    ix <- if (isTRUE(input$zoom_enabled) && n > 300L) {
+      start <- max(1L, min(n, as.integer(input$zoom_start)))
+      seq.int(start, min(n, start + as.integer(input$zoom_size) - 1L))
+    } else seq_len(n)
+    if (length(ix) > 512L)
+      ix <- ix[unique(as.integer(round(seq(1, length(ix), length.out = 512L))))]
+    ix
+  }
   pair_data <- shiny::reactive({
     m <- shared()
     paired_values(m$first, m$second, max_pairs = input$max_pairs)
@@ -218,7 +227,7 @@ server <- function(input, output, session) {
     output[[paste0(prefix, "_ui")]] <- shiny::renderUI({
       if (is_difference) shiny::req(input$comparable_scales)
       m <- source()
-      size <- if (combined) nrow(m$first) else nrow(m)
+      size <- if (combined || is_difference) nrow(m$first) else nrow(m)
       if (size <= 300L)
         plotly::plotlyOutput(paste0(prefix, "_interactive"),
                              width = "100%", height = "750px")
@@ -232,8 +241,9 @@ server <- function(input, output, session) {
     output[[paste0(prefix, "_interactive")]] <- plotly::renderPlotly({
       if (is_difference) shiny::req(input$comparable_scales)
       m <- source()
-      size <- if (combined) nrow(m$first) else nrow(m)
+      size <- if (combined || is_difference) nrow(m$first) else nrow(m)
       shiny::req(size <= 300L)
+      if (is_difference) m <- m$first - m$second
       ma_interactive(m, name = name, palette = input$palette,
         show_numbers = input$show_numbers, combined = combined,
         first_name = first_label, second_name = second_label,
@@ -242,38 +252,56 @@ server <- function(input, output, session) {
     output[[paste0(prefix, "_raster")]] <- shiny::renderPlot({
       if (is_difference) shiny::req(input$comparable_scales)
       m <- source()
-      size <- if (combined) nrow(m$first) else nrow(m)
+      size <- if (combined || is_difference) nrow(m$first) else nrow(m)
       shiny::req(size > 300L)
-      if (combined) {
-        m <- ma_combined(m$first, m$second, input$log_scale)$values
-        normal <- TRUE
-      } else normal <- FALSE
+      ix <- visible_indices(size)
+      if (combined || is_difference) {
+        # Slice first: do not build three full N*N combined copies for a preview.
+        a <- m$first[ix, ix, drop = FALSE]
+        b <- m$second[ix, ix, drop = FALSE]
+        if (combined) {
+          m <- ma_combined(a, b, input$log_scale)$values
+          normal <- TRUE
+        } else {
+          m <- a - b
+          normal <- FALSE
+        }
+      } else {
+        m <- m[ix, ix, drop = FALSE]
+        normal <- FALSE
+      }
       graphics::par(mar = c(9, 9, 5, 2))
       d <- data()
       meta <- if (is_difference || !nzchar(input$metadata_column)) NULL
               else d$metadata
       ma_raster(m, palette = input$palette, title = name,
-                metadata = meta,
-                group_column = input$metadata_column, normalized = normal,
-                log_scale = input$log_scale && !is_difference)
+                metadata = meta, group_column = input$metadata_column,
+                normalized = normal, log_scale = input$log_scale && !is_difference)
+      if (length(ix) < size)
+        graphics::mtext(if (isTRUE(input$zoom_enabled))
+          sprintf("Zoom region; %d of %d isolates (starting at %d).",
+                  length(ix), size, min(ix))
+          else sprintf("Representative overview: %d of %d isolates. Zoom for exact detail.",
+                       length(ix), size), side = 3, line = 0.1, cex = 0.75)
     }, res = 110)
     output[[paste0(prefix, "_cell")]] <- shiny::renderText({
       shiny::req(input[[paste0(prefix, "_click")]])
       if (is_difference) shiny::req(input$comparable_scales)
       m <- source()
-      original <- if (combined)
-        ma_combined(m$first, m$second, input$log_scale)$original else m
-      preview <- ma_preview(original)
+      base <- if (combined || is_difference) m$first else m
+      ix <- visible_indices(nrow(base))
       click <- input[[paste0(prefix, "_click")]]
       col <- as.integer(round(click$x))
-      row <- as.integer(nrow(preview$matrix) + 1 - round(click$y))
+      row <- as.integer(length(ix) + 1L - round(click$y))
       if (is.na(col) || is.na(row) || col < 1L ||
-          row < 1L || col > nrow(preview$matrix) ||
-          row > nrow(preview$matrix)) return("")
-      i <- preview$indices[row]
-      j <- preview$indices[col]
-      sprintf("%s / %s: %s%s", rownames(original)[i],
-              colnames(original)[j], format(original[i, j], digits = 9),
+          row < 1L || col > length(ix) || row > length(ix)) return("")
+      i <- ix[row]
+      j <- ix[col]
+      value <- if (combined && i > j) m$second[i, j]
+               else if (is_difference) m$first[i, j] - m$second[i, j]
+               else if (combined) m$first[i, j] else m[i, j]
+      sprintf("%s / %s: %s%s", rownames(base)[i],
+              colnames(base)[j], format(value, digits = 9),
               if (combined) if (i < j) paste0(" (", first_label, ")")
               else if (i > j) paste0(" (", second_label, ")")
               else " (diagonal)" else "")
