@@ -6,7 +6,8 @@ matrix_sheet_names <- function(path, format = path) {
   character()
 }
 
-read_matrix_input <- function(path, sheet = NULL, workbook = NULL, format = path) {
+read_matrix_input <- function(path, sheet = NULL, workbook = NULL, format = path,
+                              kind = "auto") {
   ext <- tolower(tools::file_ext(format))
   if (ext %in% c("xlsx", "xlsm")) {
     if (is.null(sheet) || identical(sheet, "")) stop("Select a matrix worksheet.")
@@ -32,7 +33,7 @@ read_matrix_input <- function(path, sheet = NULL, workbook = NULL, format = path
   } else {
     stop("Unsupported matrix format. Use XLSX, CSV, TSV, CSV.GZ, TSV.GZ or RDS.")
   }
-  validate_matrix(x)
+  validate_matrix(x, kind = kind)
 }
 
 validate_matrix <- function(x, kind = c("auto", "similarity", "correlation", "distance"),
@@ -58,27 +59,45 @@ validate_matrix <- function(x, kind = c("auto", "similarity", "correlation", "di
                  paste(head(only_rows, 10L), collapse = ", "),
                  paste(head(only_cols, 10L), collapse = ", ")))
   }
-  original <- as.matrix(x)
-  converted <- suppressWarnings(as.numeric(original))
-  empty <- is.na(original) | trimws(as.character(original)) == ""
-  if (any(is.na(converted) & !empty))
-    stop("The matrix has nonnumeric values. Check the data worksheets.")
-  m <- matrix(converted, nrow = nrow(x), ncol = ncol(x),
-              dimnames = list(row_ids, col_ids))
-  m <- m[col_ids, col_ids, drop = FALSE]
+  if (is.matrix(x) && is.numeric(x)) {
+    # Fast path: avoid coercing an already numeric N*N matrix into another
+    # full-size matrix during import.
+    m <- x
+    dimnames(m) <- list(row_ids, col_ids)
+  } else {
+    original <- as.matrix(x)
+    converted <- suppressWarnings(as.numeric(original))
+    empty <- is.na(original) | trimws(as.character(original)) == ""
+    if (any(is.na(converted) & !empty))
+      stop("The matrix has nonnumeric values. Check the data worksheets.")
+    m <- matrix(converted, nrow = nrow(x), ncol = ncol(x),
+                dimnames = list(row_ids, col_ids))
+  }
+  # Reorder only when necessary; with 10k isolates, one copy costs 800 MB.
+  if (!identical(row_ids, col_ids))
+    m <- m[col_ids, col_ids, drop = FALSE]
   if (any(is.infinite(m))) stop("Infinite matrix values are not supported.")
   if (!allow_missing && anyNA(m)) stop("Missing matrix values are not allowed.")
   if (anyNA(diag(m))) stop("Every diagonal entry must be present.")
-  if (!identical(is.na(m), is.na(t(m))))
-    stop("Missing values must occur in mirrored pairs for a symmetric matrix.")
-  numeric_diff <- abs(m - t(m))
-  if (any(numeric_diff > symmetry_tolerance, na.rm = TRUE))
-    stop("The matrix must be symmetric; mirrored cells disagree.")
-  if (kind == "correlation" && any(m < -1 - symmetry_tolerance |
-                                     m > 1 + symmetry_tolerance, na.rm = TRUE))
+  # Verify exact symmetry in blocks to avoid allocating N*N transposed,
+  # missingness and difference matrices simultaneously.
+  n <- nrow(m)
+  block_size <- 256L
+  for (start in seq.int(1L, n, by = block_size)) {
+    ix <- seq.int(start, min(n, start + block_size - 1L))
+    left <- m[ix, , drop = FALSE]
+    right <- t(m[, ix, drop = FALSE])
+    if (!identical(is.na(left), is.na(right)))
+      stop("Missing values must occur in mirrored pairs for a symmetric matrix.")
+    if (any(abs(left - right) > symmetry_tolerance, na.rm = TRUE))
+      stop("The matrix must be symmetric; mirrored cells disagree.")
+  }
+  if (kind == "correlation" &&
+      (min(m, na.rm = TRUE) < -1 - symmetry_tolerance ||
+       max(m, na.rm = TRUE) > 1 + symmetry_tolerance))
     stop("Correlation values must lie between -1 and 1.")
   if (kind %in% c("similarity", "distance") &&
-      any(m < -symmetry_tolerance, na.rm = TRUE))
+      min(m, na.rm = TRUE) < -symmetry_tolerance)
     stop("Similarity and distance matrices cannot contain negative values.")
   attr(m, "matrix_kind") <- kind
   m
