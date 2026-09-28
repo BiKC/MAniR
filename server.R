@@ -45,11 +45,15 @@ server <- function(input, output, session) {
           kind1 <- "similarity"
           kind2 <- "similarity"
           match_mode <- "strict"
+          cluster_requested <- TRUE
+          linkage <- "complete"
           shiny::incProgress(0.40)
         } else {
           kind1 <- input$kind1
           kind2 <- input$kind2
           match_mode <- input$match_mode
+          cluster_requested <- isTRUE(input$cluster)
+          linkage <- input$linkage
           f <- input$first_file
         wb1 <- if (is_excel(f)) openxlsx::loadWorkbook(f$datapath) else NULL
         a <- read_matrix_input(f$datapath,
@@ -108,8 +112,8 @@ server <- function(input, output, session) {
           if (!is.null(explicit))
             return(c(intersect(explicit, colnames(m)),
                      setdiff(colnames(m), explicit)))
-          matrix_order(m, kind, cluster = isTRUE(input$cluster),
-                       linkage = input$linkage)$ids
+          matrix_order(m, kind, cluster = cluster_requested,
+                       linkage = linkage)$ids
         }
         order1 <- order_for(a, kind1)
         shiny::incProgress(0.30)
@@ -128,11 +132,11 @@ server <- function(input, output, session) {
              order1 = order1, order2 = order2,
              source = if (example) "synthetic example" else "uploaded files",
              matching = match_mode,
-             clustering_skipped = isTRUE(input$cluster) &&
+             clustering_skipped = cluster_requested &&
                is.null(explicit) &&
                (nrow(a) > 2000L || (!is.null(b) && nrow(b) > 2000L)),
              kind1 = kind1, kind2 = kind2,
-             linkage = input$linkage)
+             linkage = linkage)
       }, error = function(e) {
         shiny::showNotification(conditionMessage(e), type = "error",
                                 duration = NULL)
@@ -146,6 +150,12 @@ server <- function(input, output, session) {
   })
   shiny::observeEvent(input$load_example, {
     shiny::updateCheckboxInput(session, "comparable_scales", value = FALSE)
+    shiny::updateSelectInput(session, "kind1", selected = "similarity")
+    shiny::updateSelectInput(session, "kind2", selected = "similarity")
+    shiny::updateRadioButtons(session, "match_mode", selected = "strict")
+    shiny::updateCheckboxInput(session, "cluster", value = TRUE)
+    shiny::updateSelectInput(session, "linkage", selected = "complete")
+    shiny::updateNumericInput(session, "cluster_k", value = 3)
     loaded(analyze_input(example = TRUE))
   })
   output$download_example <- shiny::downloadHandler(
