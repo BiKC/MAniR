@@ -5,7 +5,7 @@ server <- function(input, output, session) {
   }
   output$first_sheet_ui <- shiny::renderUI({
     if (!is_excel(input$first_file)) return(NULL)
-    sheets <- tryCatch(matrix_sheet_names(input$first_file$datapath),
+    sheets <- tryCatch(matrix_sheet_names(input$first_file$datapath, input$first_file$name),
                        error = function(e) character())
     shiny::selectInput("first_sheet", "First matrix worksheet",
                        choices = sheets, selected = sheets[1L])
@@ -13,7 +13,7 @@ server <- function(input, output, session) {
   output$second_sheet_ui <- shiny::renderUI({
     f <- if (!is.null(input$second_file)) input$second_file else input$first_file
     if (!is_excel(f)) return(NULL)
-    sheets <- tryCatch(matrix_sheet_names(f$datapath),
+    sheets <- tryCatch(matrix_sheet_names(f$datapath, f$name),
                        error = function(e) character())
     suggested <- if (is.null(input$second_file) && length(sheets) > 1L)
       sheets[2L] else "None"
@@ -23,7 +23,7 @@ server <- function(input, output, session) {
   output$metadata_sheet_ui <- shiny::renderUI({
     f <- if (!is.null(input$metadata_file)) input$metadata_file else input$first_file
     if (!is_excel(f)) return(NULL)
-    sheets <- tryCatch(matrix_sheet_names(f$datapath),
+    sheets <- tryCatch(matrix_sheet_names(f$datapath, f$name),
                        error = function(e) character())
     suggested <- if (is.null(input$metadata_file) &&
                      is.null(input$second_file) && length(sheets) > 2L)
@@ -41,7 +41,7 @@ server <- function(input, output, session) {
         wb1 <- if (is_excel(f)) openxlsx::loadWorkbook(f$datapath) else NULL
         a <- read_matrix_input(f$datapath,
            sheet = if (is_excel(f)) input$first_sheet else NULL,
-           workbook = wb1)
+           workbook = wb1, format = f$name)
         a <- validate_matrix(a, input$kind1)
         shiny::incProgress(0.20)
         f2 <- if (!is.null(input$second_file)) input$second_file else f
@@ -57,7 +57,7 @@ server <- function(input, output, session) {
             openxlsx::loadWorkbook(f2$datapath) else wb1
           b <- read_matrix_input(f2$datapath,
               sheet = if (is_excel(f2)) input$second_sheet else NULL,
-              workbook = wb2)
+              workbook = wb2, format = f2$name)
           b <- validate_matrix(b, input$kind2)
           # Match once for early actionable errors; avoid retaining copies.
           shared_ids <- intersect(colnames(a), colnames(b))
@@ -76,9 +76,9 @@ server <- function(input, output, session) {
           wbm <- if (!is.null(input$metadata_file))
             openxlsx::loadWorkbook(fmeta$datapath) else wb1
           meta <- read_metadata_input(fmeta$datapath,
-                                       input$metadata_sheet, wbm)
+                                       input$metadata_sheet, wbm, format = fmeta$name)
         } else if (!is.null(input$metadata_file) && !is_excel(fmeta)) {
-          meta <- read_metadata_input(fmeta$datapath)
+          meta <- read_metadata_input(fmeta$datapath, format = fmeta$name)
         }
         if (!is.null(meta) && !all(colnames(a) %in% rownames(meta)))
           shiny::showNotification("Some matrix samples have no metadata.",
