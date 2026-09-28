@@ -20,15 +20,24 @@ read_matrix_input <- function(path, sheet = NULL, workbook = NULL, format = path
     sep <- if (ext == "tsv" || grepl("\\.tsv\\.gz$", format, ignore.case = TRUE)) "\t" else ","
     if (ext != "gz" && requireNamespace("data.table", quietly = TRUE)) {
       x <- data.table::fread(path, sep = sep, data.table = FALSE,
-                             check.names = FALSE, showProgress = FALSE)
+                             check.names = FALSE, showProgress = FALSE,
+                             colClasses = list(character = 1L))
       if (ncol(x) < 2L) stop("The file needs an ID column and matrix columns.")
       ids <- x[[1L]]
       x <- x[-1L]
       rownames(x) <- as.character(ids)
     } else {
+      # Detect header width without parsing all of the large matrix as text.
+      # Explicitly read the first ID column as character to retain "0012".
+      header_con <- if (ext == "gz") gzfile(path, "rt") else file(path, "rt")
+      columns <- tryCatch(
+        scan(header_con, what = character(), sep = sep, quote = '"',
+             nlines = 1L, quiet = TRUE),
+        finally = close(header_con))
+      classes <- c("character", rep(NA_character_, max(0L, length(columns) - 1L)))
       x <- utils::read.table(path, sep = sep, header = TRUE, row.names = 1L,
                              check.names = FALSE, comment.char = "",
-                             stringsAsFactors = FALSE)
+                             stringsAsFactors = FALSE, colClasses = classes)
     }
   } else {
     stop("Unsupported matrix format. Use XLSX, CSV, TSV, CSV.GZ, TSV.GZ or RDS.")
