@@ -164,6 +164,23 @@ server <- function(input, output, session) {
   )
 
   data <- shiny::reactive({ shiny::req(loaded()); loaded() })
+  output$active_analysis <- shiny::renderUI({
+    d <- data()
+    if (identical(d$source, "synthetic example")) {
+      return(shiny::p(class = "small-help",
+        "Currently displayed: synthetic ANI-like and MALDI-like similarity matrices. This example always uses similarity inputs, even if a dropdown below is changed. Reload the example to reset the controls."))
+    }
+    changed <- (!is.null(input$kind1) && !identical(input$kind1, d$kind1)) ||
+      (!is.null(input$kind2) && !identical(input$kind2, d$kind2)) ||
+      (!is.null(input$linkage) && !identical(input$linkage, d$linkage))
+    shiny::p(class = "small-help",
+      sprintf("Currently displayed: %s (matrix 1), %s (matrix 2); %s linkage.%s",
+              d$kind1, if (is.null(d$second)) "not loaded" else d$kind2,
+              d$linkage,
+              if (changed)
+                " You have changed analysis settings. Click Load and analyze to apply them."
+              else ""))
+  })
   has_two <- shiny::reactive(!is.null(data()$second))
   subset_if_needed <- function(m, ids) {
     if (identical(colnames(m), ids) && identical(rownames(m), ids))
@@ -595,7 +612,8 @@ server <- function(input, output, session) {
     filename = function() "MAniR_pairwise_values.csv",
     content = function(file) {
       shiny::req(has_two())
-      utils::write.csv(pair_data()$data, file, row.names = FALSE)
+      values <- pair_export_data(pair_data(), comparable = can_difference())
+      utils::write.csv(values, file, row.names = FALSE)
     })
   output$download_clusters <- shiny::downloadHandler(
     filename = function() "MAniR_clusters.csv",
