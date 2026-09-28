@@ -73,3 +73,8 @@ Verification still outstanding:
 
 Do not merge or tag this development branch as a validated release until
 these checks pass. The arXiv manuscript is outside this work scope.
+
+- Added a self-contained, clearly labeled synthetic 12-isolate example with
+  matching ANI- and MALDI-like matrices and metadata. The upgraded interface
+  offers a one-click loader and an XLSX download; numerical and Shiny tests
+  cover both the demo and switching back to user uploads.
