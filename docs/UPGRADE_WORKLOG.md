@@ -78,3 +78,10 @@ these checks pass. The arXiv manuscript is outside this work scope.
   matching ANI- and MALDI-like matrices and metadata. The upgraded interface
   offers a one-click loader and an XLSX download; numerical and Shiny tests
   cover both the demo and switching back to user uploads.
+
+- Reorganized Shiny into a desktop split workspace with independently scrolling
+  upload options and results. Moved live palette, metadata, cell labels and
+  context-sensitive statistical controls to a persistent results toolbar.
+  Upload action stays visible in a fixed sidebar footer, interpretation text
+  starts collapsed, plots size to viewport and narrow windows fall back to
+  normal scrolling. Added UI structure regression checks.
