@@ -112,7 +112,11 @@ ui <- shiny::fluidPage(
             shiny::downloadButton("download_second", "Matrix 2 CSV"),
             shiny::downloadButton("download_rds", "Analysis matrices (RDS)"),
             shiny::downloadButton("download_first_png", "Matrix 1 PNG"),
+            shiny::downloadButton("download_pdf", "Matrix 1 PDF"),
+            shiny::downloadButton("download_svg", "Matrix 1 SVG"),
+            shiny::downloadButton("download_html", "Interactive HTML preview"),
             shiny::downloadButton("download_combined_png", "Combined PNG"),
+            shiny::downloadButton("download_difference", "Exact difference matrix CSV"),
             shiny::downloadButton("download_settings", "Analysis settings (text)")
           )
         )
