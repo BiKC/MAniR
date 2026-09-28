@@ -47,6 +47,27 @@ Click **Download example XLSX** to obtain a workbook with `ANI`, `MALDI`,
 `examples/`. To upload the workbook yourself, select ANI as the first sheet,
 MALDI as the second and metadata as the annotation sheet.
 
+## Workspace layout
+
+On a desktop window, MAniR keeps the analysis results and control sidebar in
+**separately scrollable panes**. The lower-left **Load and analyze uploaded
+files** button stays visible when you scroll through the upload options.
+The right-hand toolbar remains visible when you scroll through a result.
+
+Use the right-hand **Colors**, **Annotation**, and **Show cell values** controls
+for instant plot changes without re-importing the dataset. **Display options**
+contains log color scaling and region zoom for large matrices. The **Clusters
+(k)** control appears in the Cluster comparison tab; **Run Mantel test**
+appears in Overview. Matrix type, clustering linkage and sample matching are
+load-time analysis settings and remain under the left-hand **Analysis settings**
+section. Changes to those settings take effect after clicking **Load and
+analyze uploaded files**. Help text is collapsed to one line above plots so the
+visualization is visible immediately; expand it for more detailed
+interpretation.
+
+On small screens or short windows, MAniR switches to a normal scrolling page
+rather than forcing two narrow, separately scrolling panes.
+
 ## Input formats
 
 - **XLSX / XLSM:** one matrix per worksheet, with sample IDs in the first row and first column. Optional second matrix and metadata sheets may be selected from the same workbook. A second workbook is also supported.
