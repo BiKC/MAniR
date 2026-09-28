@@ -224,7 +224,7 @@ ma_publication_plot <- function(m, palette = "RdBu", title = "",
   good <- is.finite(z)
   fill[good] <- cols[scaled[good]]
   i <- rep.int(seq_len(n), times = n)
-  j <- rep.int(seq_len(n), each = n)
+  j <- rep(seq_len(n), each = n)
   graphics::plot(NA_real_, xlim = c(0.5, n + 0.5),
                  ylim = c(0.5, n + 0.5), xaxs = "i", yaxs = "i",
                  asp = 1, axes = FALSE, xlab = "", ylab = "", main = title)
