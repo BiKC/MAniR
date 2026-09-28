@@ -74,11 +74,12 @@ ma_interactive <- function(m, name = "Matrix", palette = "RdBu",
     z <- ma_scale(m, log_scale, center_zero)
   }
   ids <- rownames(original)
+  ids_safe <- htmltools::htmlEscape(ids)
   hover <- matrix("", nrow = n, ncol = n)
   for (j in seq_len(n)) {
     dataset <- if (combined) ifelse(seq_len(n) < j, first_name,
                                    ifelse(seq_len(n) > j, second_name, "Diagonal")) else name
-    hover[, j] <- paste0("Row: ", ids, "<br>Column: ", ids[j],
+    hover[, j] <- paste0("Row: ", ids_safe, "<br>Column: ", ids_safe[j],
                           "<br>", dataset, ": ", format(original[, j],
                           digits = 8L, trim = TRUE))
   }
@@ -98,7 +99,7 @@ ma_interactive <- function(m, name = "Matrix", palette = "RdBu",
     # Text labels only for small matrices; large labels overload the browser.
     for (i in seq_len(n)) {
       p <- plotly::add_annotations(p, x = ids, y = ids[i],
-        text = note[i, ], showarrow = FALSE,
+        text = note[i, ], xref = "x", yref = "y", showarrow = FALSE,
         font = list(size = if (n > 35L) 7L else 10L))
     }
   }
