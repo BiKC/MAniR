@@ -60,7 +60,8 @@ ma_combined <- function(first, second, log_scale = FALSE) {
 ma_interactive <- function(m, name = "Matrix", palette = "RdBu",
                            show_numbers = FALSE, combined = FALSE,
                            first_name = "Matrix 1", second_name = "Matrix 2",
-                           log_scale = FALSE, center_zero = FALSE) {
+                           log_scale = FALSE, center_zero = FALSE,
+                           metadata = NULL, group_column = NULL) {
   if (!requireNamespace("plotly", quietly = TRUE))
     stop("Install the plotly package for interactive plots.")
   n <- if (combined) nrow(m$first) else nrow(m)
@@ -82,6 +83,28 @@ ma_interactive <- function(m, name = "Matrix", palette = "RdBu",
     hover[, j] <- paste0("Row: ", ids_safe, "<br>Column: ", ids_safe[j],
                           "<br>", dataset, ": ", format(original[, j],
                           digits = 8L, trim = TRUE))
+  }
+  shapes <- NULL
+  if (!is.null(metadata) && !is.null(group_column) &&
+      isTRUE(nzchar(group_column)) && group_column %in% names(metadata)) {
+    groups <- as.character(metadata[match(ids, rownames(metadata)), group_column])
+    group_text <- htmltools::htmlEscape(ifelse(is.na(groups), "Missing", groups))
+    for (j in seq_len(n))
+      hover[, j] <- paste0(hover[, j], "<br>",
+                            htmltools::htmlEscape(group_column), ": ",
+                            group_text)
+    classes <- unique(groups[!is.na(groups)])
+    if (length(classes) <= 30L && length(classes) > 0L) {
+      category_colors <- grDevices::hcl.colors(length(classes), "Set 2")
+      selected <- category_colors[match(groups, classes)]
+      selected[is.na(selected)] <- "#E5E5E5"
+      shapes <- lapply(seq_len(n), function(i) {
+        list(type = "rect", xref = "paper", yref = "y",
+             x0 = -0.035, x1 = -0.012,
+             y0 = n - i - 0.45, y1 = n - i + 0.45,
+             fillcolor = selected[i], line = list(width = 0))
+      })
+    }
   }
   note <- NULL
   if (show_numbers && n <= 70L) {
@@ -107,7 +130,8 @@ ma_interactive <- function(m, name = "Matrix", palette = "RdBu",
                  xaxis = list(title = "", side = "bottom", tickangle = -65,
                               automargin = TRUE),
                  yaxis = list(title = "", automargin = TRUE),
-                 margin = list(l = 110, b = 130, r = 30, t = 55))
+                 shapes = shapes,
+                 margin = list(l = 130, b = 130, r = 30, t = 55))
 }
 
 # Representative-pixel preview: never use the reduced view for numerical
@@ -170,12 +194,13 @@ ma_raster <- function(m, palette = "RdBu", title = "",
 }
 
 ma_save_png <- function(m, file, palette = "RdBu", title = "",
-                        max_side = 1200L, normalized = FALSE) {
+                        max_side = 1200L, normalized = FALSE,
+                        log_scale = FALSE) {
   grDevices::png(file, width = 1700L, height = 1600L, res = 160L)
   on.exit(grDevices::dev.off(), add = TRUE)
   graphics::par(mar = c(9, 9, 5, 2))
   ma_raster(m, palette = palette, title = title, max_side = max_side,
-            normalized = normalized)
+            normalized = normalized, log_scale = log_scale)
   invisible(file)
 }
 
@@ -184,14 +209,15 @@ ma_save_png <- function(m, file, palette = "RdBu", title = "",
 # millions of individual rectangles into PDF/SVG would be excessive, so larger
 # figures embed the same documented representative raster overview instead.
 ma_publication_plot <- function(m, palette = "RdBu", title = "",
-                                normalized = FALSE, vector_limit = 150L) {
+                                normalized = FALSE, vector_limit = 150L,
+                                log_scale = FALSE) {
   n <- nrow(m)
   if (n > vector_limit) {
     ma_raster(m, palette = palette, title = title, max_side = 1200L,
-              normalized = normalized)
+              normalized = normalized, log_scale = log_scale)
     return(invisible(FALSE))
   }
-  z <- if (normalized) m else ma_scale(m)
+  z <- if (normalized) m else ma_scale(m, log_scale = log_scale)
   cols <- ma_colors(palette)
   scaled <- as.integer(1 + round(z * (length(cols) - 1L)))
   fill <- matrix("#E5E5E5", nrow(z), ncol(z))
@@ -215,19 +241,19 @@ ma_publication_plot <- function(m, palette = "RdBu", title = "",
 }
 
 ma_save_pdf <- function(m, file, palette = "RdBu", title = "",
-                        normalized = FALSE) {
+                        normalized = FALSE, log_scale = FALSE) {
   grDevices::pdf(file, width = 11, height = 11, useDingbats = FALSE)
   on.exit(grDevices::dev.off(), add = TRUE)
   graphics::par(mar = c(10, 10, 5, 2))
-  ma_publication_plot(m, palette, title, normalized)
+  ma_publication_plot(m, palette, title, normalized, log_scale = log_scale)
   invisible(file)
 }
 
 ma_save_svg <- function(m, file, palette = "RdBu", title = "",
-                        normalized = FALSE) {
+                        normalized = FALSE, log_scale = FALSE) {
   grDevices::svg(file, width = 11, height = 11)
   on.exit(grDevices::dev.off(), add = TRUE)
   graphics::par(mar = c(10, 10, 5, 2))
-  ma_publication_plot(m, palette, title, normalized)
+  ma_publication_plot(m, palette, title, normalized, log_scale = log_scale)
   invisible(file)
 }
