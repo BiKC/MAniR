@@ -20,8 +20,8 @@ ma_scale <- function(x, log_scale = FALSE, center_zero = FALSE) {
   valid <- is.finite(x)
   if (!any(valid)) stop("There are no finite values to display.")
   if (log_scale) {
-    if (any(x[valid] <= 0)) stop("Log scaling requires strictly positive values.")
-    x[valid] <- log(x[valid])
+    if (any(x[valid] < 0)) stop("Log scaling requires nonnegative values.")
+    x[valid] <- log1p(x[valid])
   }
   if (center_zero) {
     if (log_scale) stop("Zero-centered scaling cannot use logarithms.")
