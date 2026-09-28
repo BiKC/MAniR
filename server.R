@@ -157,8 +157,18 @@ server <- function(input, output, session) {
                 sprintf(" | %s in matrix 2",
                         format(nrow(d$second), big.mark = ","))))
   })
+  # After loading, open the result rather than leaving the researcher
+  # at an empty Overview tab. Display-only controls then update it in place.
+  show_loaded_heatmap <- function() {
+    shiny::updateTabsetPanel(session, "results_tab", selected = "Heatmaps")
+    shiny::updateTabsetPanel(session, "matrix_view", selected = "Matrix 1")
+  }
   shiny::observeEvent(input$visualize, {
-    loaded(analyze_input(example = FALSE))
+    result <- analyze_input(example = FALSE)
+    if (!is.null(result)) {
+      loaded(result)
+      show_loaded_heatmap()
+    }
   })
   shiny::observeEvent(input$load_example, {
     shiny::updateCheckboxInput(session, "comparable_scales", value = FALSE)
@@ -168,7 +178,11 @@ server <- function(input, output, session) {
     shiny::updateCheckboxInput(session, "cluster", value = TRUE)
     shiny::updateSelectInput(session, "linkage", selected = "complete")
     shiny::updateNumericInput(session, "cluster_k", value = 3)
-    loaded(analyze_input(example = TRUE))
+    result <- analyze_input(example = TRUE)
+    if (!is.null(result)) {
+      loaded(result)
+      show_loaded_heatmap()
+    }
   })
   output$download_example <- shiny::downloadHandler(
     filename = function() "MAniR_synthetic_example.xlsx",
