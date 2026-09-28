@@ -1,5 +1,6 @@
 # MAniR Shiny entry point. Dependencies are documented in README and renv.
-required <- c("shiny", "plotly", "openxlsx", "RColorBrewer")
+required <- c("shiny", "plotly", "htmltools", "htmlwidgets",
+              "openxlsx", "RColorBrewer")
 missing <- setdiff(required, rownames(installed.packages()))
 if (length(missing))
   stop("Install required packages before launching: ",
