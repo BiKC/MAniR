@@ -308,6 +308,9 @@ test("workspace separates scrolling inputs from persistent live controls", {
     if (!grepl(expected, html, fixed = TRUE))
       stop("Missing expected workspace element: ", expected)
   }
+  # The primary navigation keeps its five matrix views in a single tab.
+  stopifnot(grepl('id="matrix_view"', html, fixed = TRUE),
+            grepl("Heatmaps", html, fixed = TRUE))
   # htmltools hoists stylesheets from the body into the document head.
   stopifnot(grepl("workspace.css", rendered$head, fixed = TRUE))
   # Repeated Shiny input IDs would lead to controls updating the wrong value.
