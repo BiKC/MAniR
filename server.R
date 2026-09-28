@@ -145,6 +145,18 @@ server <- function(input, output, session) {
     })
   }
   loaded <- shiny::reactiveVal(NULL)
+  output$sidebar_status <- shiny::renderUI({
+    d <- loaded()
+    if (is.null(d))
+      return(shiny::span(class = "load-status",
+        "Choose the example or upload matrices to begin."))
+    shiny::span(class = "load-status",
+      sprintf("Loaded: %s | %s isolates%s", d$source,
+              format(nrow(d$first), big.mark = ","),
+              if (is.null(d$second)) "" else
+                sprintf(" | %s in matrix 2",
+                        format(nrow(d$second), big.mark = ","))))
+  })
   shiny::observeEvent(input$visualize, {
     loaded(analyze_input(example = FALSE))
   })
@@ -348,13 +360,16 @@ server <- function(input, output, session) {
       m <- source()
       size <- if (combined || is_difference) nrow(m$first) else nrow(m)
       if (size <= 300L)
-        plotly::plotlyOutput(paste0(prefix, "_interactive"),
-                             width = "100%", height = "750px")
+        shiny::div(class = "plot-frame",
+          plotly::plotlyOutput(paste0(prefix, "_interactive"),
+                               width = "100%", height = "100%"))
       else shiny::tagList(
-        shiny::p("Large-matrix raster preview. Click a cell to inspect its exact original value."),
-        shiny::plotOutput(paste0(prefix, "_raster"),
-                          width = "100%", height = "850px",
-                          click = paste0(prefix, "_click"))
+        shiny::p(class = "small-help",
+          "Representative raster preview. Click a cell for its exact original value. Use Display options to zoom."),
+        shiny::div(class = "plot-frame",
+          shiny::plotOutput(paste0(prefix, "_raster"),
+                            width = "100%", height = "100%",
+                            click = paste0(prefix, "_click")))
       )
     })
     output[[paste0(prefix, "_interactive")]] <- plotly::renderPlotly({
