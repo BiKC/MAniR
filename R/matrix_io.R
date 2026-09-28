@@ -7,7 +7,7 @@ matrix_sheet_names <- function(path, format = path) {
 }
 
 read_matrix_input <- function(path, sheet = NULL, workbook = NULL, format = path) {
-  ext <- tolower(tools::file_ext(path))
+  ext <- tolower(tools::file_ext(format))
   if (ext %in% c("xlsx", "xlsm")) {
     if (is.null(sheet) || identical(sheet, "")) stop("Select a matrix worksheet.")
     if (is.null(workbook)) workbook <- openxlsx::loadWorkbook(path)
@@ -85,7 +85,7 @@ validate_matrix <- function(x, kind = c("auto", "similarity", "correlation", "di
 }
 
 read_metadata_input <- function(path, sheet = NULL, workbook = NULL, format = path) {
-  ext <- tolower(tools::file_ext(path))
+  ext <- tolower(tools::file_ext(format))
   if (ext %in% c("xlsx", "xlsm")) {
     if (is.null(sheet) || sheet == "None") return(NULL)
     if (is.null(workbook)) workbook <- openxlsx::loadWorkbook(path)
