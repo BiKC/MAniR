@@ -166,8 +166,7 @@ ma_save_png <- function(m, file, palette = "RdBu", title = "",
                         max_side = 1200L, normalized = FALSE) {
   grDevices::png(file, width = 1700L, height = 1600L, res = 160L)
   on.exit(grDevices::dev.off(), add = TRUE)
-  op <- graphics::par(mar = c(9, 9, 5, 2))
-  on.exit(graphics::par(op), add = TRUE)
+  graphics::par(mar = c(9, 9, 5, 2))
   ma_raster(m, palette = palette, title = title, max_side = max_side,
             normalized = normalized)
   invisible(file)
