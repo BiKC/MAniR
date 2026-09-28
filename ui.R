@@ -18,7 +18,18 @@ ui <- shiny::fluidPage(
   shiny::p("Explore and compare pairwise similarity, correlation or distance matrices."),
   shiny::sidebarLayout(
     shiny::sidebarPanel(width = 3,
-      shiny::h4("Input data"),
+      shiny::div(class = "metric",
+        shiny::h4("Try an example"),
+        shiny::p("Explore 12 fictional isolates, two similarity matrices and sample metadata. No upload needed."),
+        shiny::actionButton("load_example", "Load example dataset",
+                             class = "btn-primary"),
+        shiny::tags$br(), shiny::tags$br(),
+        shiny::downloadButton("download_example", "Download example XLSX"),
+        shiny::p(class = "small-help",
+          "Synthetic data for demonstration, not real biological measurements.")
+      ),
+      shiny::hr(),
+      shiny::h4("Upload your data"),
       shiny::p(class = "small-help",
         "For very large matrices, CSV or RDS is preferable to Excel.
          Import uses RAM for the matrix and temporary validation data."),
