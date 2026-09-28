@@ -5,6 +5,10 @@ if (length(missing))
   stop("Install required packages before launching: ",
        paste(missing, collapse = ", "),
        ". See README.md for installation instructions.")
+max_upload_mb <- as.numeric(Sys.getenv("MANIR_MAX_UPLOAD_MB", "1024"))
+if (!is.finite(max_upload_mb) || max_upload_mb < 1)
+  stop("MANIR_MAX_UPLOAD_MB must be a positive number.")
+options(shiny.maxRequestSize = max_upload_mb * 1024^2)
 source("R/matrix_io.R", local = TRUE)
 source("R/matrix_analysis.R", local = TRUE)
 source("R/matrix_plot.R", local = TRUE)
