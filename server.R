@@ -246,11 +246,15 @@ server <- function(input, output, session) {
       size <- if (combined || is_difference) nrow(m$first) else nrow(m)
       shiny::req(size <= 300L)
       if (is_difference) m <- m$first - m$second
+      d <- data()
+      meta <- if (is_difference || !isTRUE(nzchar(input$metadata_column)))
+        NULL else d$metadata
       ma_interactive(m, name = name, palette = input$palette,
         show_numbers = input$show_numbers, combined = combined,
         first_name = first_label, second_name = second_label,
         log_scale = input$log_scale && !is_difference,
-        center_zero = is_difference)
+        center_zero = is_difference,
+        metadata = meta, group_column = input$metadata_column)
     })
     output[[paste0(prefix, "_raster")]] <- shiny::renderPlot({
       if (is_difference) shiny::req(input$comparable_scales)
@@ -418,7 +422,7 @@ server <- function(input, output, session) {
     filename = function() "MAniR_matrix1.png",
     content = function(file)
       ma_save_png(ordered_first(), file, palette = input$palette,
-                  title = "Matrix 1"))
+                  title = "Matrix 1", log_scale = input$log_scale))
   output$download_combined_png <- shiny::downloadHandler(
     filename = function() "MAniR_combined.png",
     content = function(file) {
@@ -432,6 +436,36 @@ server <- function(input, output, session) {
       ma_save_png(shown, file, palette = input$palette,
                   title = sprintf("Combined matrix, %d of %d isolates", length(ix),
                                   nrow(m$first)), normalized = TRUE)
+    })
+  output$download_pdf <- shiny::downloadHandler(
+    filename = function() "MAniR_matrix1.pdf",
+    content = function(file)
+      ma_save_pdf(ordered_first(), file, palette = input$palette,
+                  title = "Matrix 1", log_scale = input$log_scale))
+  output$download_svg <- shiny::downloadHandler(
+    filename = function() "MAniR_matrix1.svg",
+    content = function(file)
+      ma_save_svg(ordered_first(), file, palette = input$palette,
+                  title = "Matrix 1", log_scale = input$log_scale))
+  output$download_html <- shiny::downloadHandler(
+    filename = function() "MAniR_interactive_preview.html",
+    content = function(file) {
+      m <- ordered_first()
+      ix <- ma_preview(m, max_side = 300L)$indices
+      widget <- ma_interactive(m[ix, ix, drop = FALSE],
+        name = sprintf("Matrix 1 (%d of %d isolates)", length(ix), nrow(m)),
+        palette = input$palette, show_numbers = input$show_numbers,
+        log_scale = input$log_scale)
+      htmlwidgets::saveWidget(widget, file = file, selfcontained = TRUE)
+    })
+  output$download_difference <- shiny::downloadHandler(
+    filename = function() "MAniR_difference_matrix.csv",
+    content = function(file) {
+      shiny::req(input$comparable_scales)
+      m <- combined_first()
+      # Full difference matrices are intentionally materialized only when
+      # explicitly requested for export.
+      write_matrix_csv(m$first - m$second, file)
     })
   output$download_settings <- shiny::downloadHandler(
     filename = function() "MAniR_analysis_settings.txt",
