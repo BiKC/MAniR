@@ -11,7 +11,8 @@ This development branch is **MAniR 3.0 prerelease**. The historical application 
 Install R 4.2 or later. The upload limit defaults to 1,024 MB and can be configured with the `MANIR_MAX_UPLOAD_MB` environment variable. Plan available RAM for at least the uploaded matrices plus working data, especially for two 10,000-isolate matrices. For those larger projects, RDS or CSV is preferable to Excel. In the repository directory, run:
 
 ```r
-install.packages(c("shiny", "plotly", "openxlsx", "RColorBrewer"))
+install.packages(c("shiny", "plotly", "htmltools", "htmlwidgets",
+                   "openxlsx", "RColorBrewer"))
 # Optional accelerators (recommended for large datasets):
 install.packages(c("data.table", "fastcluster"))
 shiny::runApp(".")
