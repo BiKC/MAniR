@@ -13,9 +13,13 @@ source("R/matrix_plot.R")
 args <- commandArgs(trailingOnly = TRUE)
 smoke <- "--smoke" %in% args
 large <- "--large" %in% args
-sizes <- if (smoke) c(60L, 120L) else if (large)
+sizes <- if (smoke) {
+  c(60L, 120L)
+} else if (large) {
   c(500L, 1000L, 2500L, 5000L, 10000L)
-else c(100L, 300L, 600L, 1000L, 2500L)
+} else {
+  c(100L, 300L, 600L, 1000L, 2500L)
+}
 repeats <- if (smoke) 1L else 3L
 dir.create("benchmarks/results", recursive = TRUE, showWarnings = FALSE)
 results <- list()
