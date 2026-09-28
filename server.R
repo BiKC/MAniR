@@ -41,8 +41,7 @@ server <- function(input, output, session) {
         wb1 <- if (is_excel(f)) openxlsx::loadWorkbook(f$datapath) else NULL
         a <- read_matrix_input(f$datapath,
            sheet = if (is_excel(f)) input$first_sheet else NULL,
-           workbook = wb1, format = f$name)
-        a <- validate_matrix(a, input$kind1)
+           workbook = wb1, format = f$name, kind = input$kind1)
         shiny::incProgress(0.20)
         f2 <- if (!is.null(input$second_file)) input$second_file else f
         has_second <- !is.null(input$second_file) ||
@@ -57,8 +56,7 @@ server <- function(input, output, session) {
             openxlsx::loadWorkbook(f2$datapath) else wb1
           b <- read_matrix_input(f2$datapath,
               sheet = if (is_excel(f2)) input$second_sheet else NULL,
-              workbook = wb2, format = f2$name)
-          b <- validate_matrix(b, input$kind2)
+              workbook = wb2, format = f2$name, kind = input$kind2)
           # Match once for early actionable errors; avoid retaining copies.
           shared_ids <- intersect(colnames(a), colnames(b))
           if (input$match_mode == "strict" &&
@@ -127,14 +125,18 @@ server <- function(input, output, session) {
 
   data <- shiny::reactive({ shiny::req(loaded()); loaded() })
   has_two <- shiny::reactive(!is.null(data()$second))
+  subset_if_needed <- function(m, ids) {
+    if (identical(colnames(m), ids) && identical(rownames(m), ids))
+      m else m[ids, ids, drop = FALSE]
+  }
   ordered_first <- shiny::reactive({
     d <- data()
-    d$first[d$order1, d$order1, drop = FALSE]
+    subset_if_needed(d$first, d$order1)
   })
   ordered_second <- shiny::reactive({
     d <- data()
     shiny::req(d$second)
-    d$second[d$order2, d$order2, drop = FALSE]
+    subset_if_needed(d$second, d$order2)
   })
   shared <- shiny::reactive({
     d <- data()
@@ -145,15 +147,15 @@ server <- function(input, output, session) {
     d <- data()
     both <- shared()
     ids <- d$order1[d$order1 %in% both$ids]
-    list(first = d$first[ids, ids, drop = FALSE],
-         second = d$second[ids, ids, drop = FALSE])
+    list(first = subset_if_needed(d$first, ids),
+         second = subset_if_needed(d$second, ids))
   })
   combined_second <- shiny::reactive({
     d <- data()
     both <- shared()
     ids <- d$order2[d$order2 %in% both$ids]
-    list(first = d$second[ids, ids, drop = FALSE],
-         second = d$first[ids, ids, drop = FALSE])
+    list(first = subset_if_needed(d$second, ids),
+         second = subset_if_needed(d$first, ids))
   })
   # Keep source matrices separate until a particular viewport is requested.
   diff_matrix <- shiny::reactive({
