@@ -55,6 +55,7 @@ ui <- shiny::fluidPage(
         shiny::p(class = "small-help",
           "Synthetic data for demonstration, not real biological measurements.")
       ),
+      shiny::uiOutput("active_analysis"),
       shiny::hr(),
       shiny::h4("Upload your data"),
       shiny::p(class = "small-help",
@@ -85,6 +86,8 @@ ui <- shiny::fluidPage(
                     "Shared isolates only" = "intersection"),
         selected = "strict"),
       shiny::actionButton("visualize", "Load and analyze", class = "btn-primary"),
+      shiny::p(class = "small-help",
+        "Matrix type, linkage and sample matching are applied when you load a dataset. Palette, annotation track and zoom controls can change the current view without reloading."),
       shiny::hr(),
       shiny::h4("Visualization"),
       shiny::checkboxInput("cluster", "Cluster samples", value = TRUE),
