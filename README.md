@@ -6,6 +6,11 @@ MAniR is an R Shiny application for investigating pairwise relationships between
 
 This development branch is **MAniR 3.0 prerelease**. The historical application remains available in the repository's Git history and on `main` until the upgrade is reviewed. Do not cite an unverified performance improvement: the benchmark scripts need to be run on specified hardware.
 
+For help understanding the plots, correlations, directional cluster agreement,
+rank gaps, metadata tracks and the restrictions on difference maps, see
+[Reading MAniR results](docs/INTERPRETING_RESULTS.md). The application also
+displays a short explanation directly on each analysis tab.
+
 ## Installation
 
 Install R 4.2 or later. The upload limit defaults to 1,024 MB and can be configured with the `MANIR_MAX_UPLOAD_MB` environment variable. Plan available RAM for at least the uploaded matrices plus working data, especially for two 10,000-isolate matrices. For those larger projects, RDS or CSV is preferable to Excel. In the repository directory, run:
