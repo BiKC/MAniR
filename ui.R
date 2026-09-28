@@ -130,8 +130,7 @@ ui <- shiny::fluidPage(
                 choices = c("RdBu", "BrBG", "PiYG", "PRGn", "PuOr", "RdYlBu",
                             "Viridis", "YlOrRd", "Blues", "Greens", "Greys"),
                 selected = "RdBu")
-            ),
-
+            )
           ),
           shiny::div(class = "toolbar-field",
             shiny::selectInput("metadata_column", "Annotation",
@@ -189,8 +188,7 @@ ui <- shiny::fluidPage(
                   )
                 )
               )
-            ),
-
+            )
           ),
           shiny::div(class = "toolbar-status",
             shiny::uiOutput("active_analysis")
