@@ -20,6 +20,28 @@ shiny::runApp(".")
 
 For scripted validation, run `Rscript tests/run_tests.R`. For repeatable performance measurements, run `Rscript benchmarks/benchmark.R` and retain the generated CSV. To compare representative original and new plotting pipelines, install the optional `corrplot` and `heatmaply` packages and run `Rscript benchmarks/compare_original.R`. The optional `--smoke` flag runs a short check; `--large` includes 10,000-isolate data and requires substantial RAM.
 
+## Built-in example
+
+Click **Load example dataset** in the application sidebar to explore MAniR
+without uploading anything. The example contains 12 **fictional** isolates in
+three groups, with two precomputed symmetric similarity matrices:
+
+- **ANI:** synthetic percentage-like genomic similarity (100 on the diagonal).
+- **MALDI:** synthetic spectral similarity on a 0–1 scale (1 on the diagonal).
+- **Metadata:** fictional group, specimen source and measurement batch.
+
+Two isolate pairs have intentionally discordant MALDI and ANI relationships,
+making the example useful for exploring split-triangle views, clustering,
+pairwise scatterplots, discrepancies and metadata tracks. The measurement
+scales are different, so leave "Both matrices use comparable numerical units"
+unchecked. All entries are illustrative and must not be used for biological
+inference or cited as measured data.
+
+Click **Download example XLSX** to obtain a workbook with `ANI`, `MALDI`,
+`metadata` and `README` sheets. The equivalent editable CSV files are in
+`examples/`. To upload the workbook yourself, select ANI as the first sheet,
+MALDI as the second and metadata as the annotation sheet.
+
 ## Input formats
 
 - **XLSX / XLSM:** one matrix per worksheet, with sample IDs in the first row and first column. Optional second matrix and metadata sheets may be selected from the same workbook. A second workbook is also supported.
@@ -71,6 +93,8 @@ server.R              Session-specific upload, analysis and lazy render logic
 R/matrix_io.R         Format readers, sample ID validation and alignment
 R/matrix_analysis.R   Pairwise summaries, clustering, permutations
 R/matrix_plot.R       Interactive and sampled raster rendering
+R/example_data.R      Example loading and XLSX download generation
+examples/             Synthetic ANI, MALDI and metadata CSVs
 tests/run_tests.R     Numeric, import, statistics and rendering regressions
 benchmarks/benchmark.R  Repeated staged scaling measurements
 docs/UPGRADE_WORKLOG.md Implementation scope and release criteria
