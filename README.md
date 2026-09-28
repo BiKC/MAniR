@@ -54,11 +54,18 @@ On a desktop window, MAniR keeps the analysis results and control sidebar in
 files** button stays visible when you scroll through the upload options.
 The right-hand toolbar remains visible when you scroll through a result.
 
+After you load data, MAniR opens **Heatmaps → Matrix 1** automatically.
+The primary navigation groups all five heatmap views under **Heatmaps**, with
+a compact secondary menu for Matrix 1, Matrix 2, both combined orderings
+and Difference. Other tabs are Overview, Pairwise comparison, Cluster
+comparison, Metadata and Export.
+
 Use the right-hand **Colors**, **Annotation**, and **Show cell values** controls
-for instant plot changes without re-importing the dataset. **Display options**
-contains log color scaling and region zoom for large matrices. The **Clusters
-(k)** control appears in the Cluster comparison tab; **Run Mantel test**
-appears in Overview. Matrix type, clustering linkage and sample matching are
+for instant plot changes without re-importing the dataset. The palette and
+cell-value options appear only in Heatmaps. **Display options** contains log
+color scaling and region zoom for large matrices. The **Clusters (k)** control
+appears in Cluster comparison, the **Max pairs** control appears in Pairwise
+comparison, and **Run Mantel test** appears in Overview. Matrix type, clustering linkage and sample matching are
 load-time analysis settings and remain under the left-hand **Analysis settings**
 section. Changes to those settings take effect after clicking **Load and
 analyze uploaded files**. Help text is collapsed to one line above plots so the
@@ -100,7 +107,7 @@ To bound memory use, the pairwise tool examines up to 100,000 distinct pairs by 
 
 The Mantel test permutes isolate labels jointly in one matrix. It reports a two-sided permutation p-value using `(extreme + 1) / (permutations + 1)`. The current implementation requires complete matched matrices with at most 400 isolates. The Mantel statistic measures matrix association; it does not establish that two typing methods produce equivalent classifications.
 
-Cluster comparison creates average-linkage group assignments on shared isolates and reports the adjusted Rand index and the directional adjusted Wallace coefficients. The number of clusters is user-selectable and both matrices must have at most 2,000 shared isolates. Pairwise similarities and clustering distances are kept conceptually distinct. The metadata group summary describes within-group versus between-group pairwise values, which may be helpful for MALDI repeatability or batch studies. That descriptive group comparison is not a formal batch-effect test.
+Cluster comparison creates the selected-linkage group assignments on shared isolates and reports the adjusted Rand index and the directional adjusted Wallace coefficients. The number of clusters is user-selectable and both matrices must have at most 2,000 shared isolates. Pairwise similarities and clustering distances are kept conceptually distinct. The metadata group summary describes within-group versus between-group pairwise values, which may be helpful for MALDI repeatability or batch studies. That descriptive group comparison is not a formal batch-effect test.
 
 MAniR accepts **precomputed** MALDI-TOF, ANI, dDDH and other pairwise results. Raw peak detection, spectral calibration and alignment remain the responsibility of specialized preprocessing software. Feeding differently normalized matrices into MAniR does not make the underlying measurement scales interchangeable.
 
