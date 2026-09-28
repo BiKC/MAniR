@@ -256,6 +256,16 @@ test("downloadable XLSX example round-trips all matrices and metadata", {
 })
 
 
+test("pair export hides raw differences between incompatible measurement scales", {
+  example <- manir_load_example()
+  pairs <- paired_values(example$first, example$second)
+  separate <- pair_export_data(pairs)
+  comparable <- pair_export_data(pairs, comparable = TRUE)
+  stopifnot(!"difference" %in% names(separate),
+            "difference" %in% names(comparable),
+            nrow(separate) == 66L)
+})
+
 test("rank gaps compare pair order without subtracting incompatible units", {
   example <- manir_load_example()
   pair <- paired_values(example$first, example$second)
