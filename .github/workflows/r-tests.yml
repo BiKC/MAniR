@@ -25,7 +25,7 @@ jobs:
       - name: Test numerical correctness, files and plot export
         run: Rscript tests/run_tests.R
       - name: Parse and load the Shiny application
-        run: Rscript -e "stopifnot(inherits(source('app.R')$value, 'shiny.appobj'))"
+        run: Rscript -e "stopifnot(inherits(getElement(source('app.R'), 'value'), 'shiny.appobj'))"
       - name: Shiny upload smoke test
         run: Rscript tests/test_shiny.R
       - name: Benchmark smoke
@@ -48,6 +48,6 @@ jobs:
       - name: Regression tests
         run: Rscript tests/run_tests.R
       - name: Parse and load application
-        run: Rscript -e "stopifnot(inherits(source('app.R')$value, 'shiny.appobj'))"
+        run: Rscript -e "stopifnot(inherits(getElement(source('app.R'), 'value'), 'shiny.appobj'))"
       - name: Shiny upload smoke test
         run: Rscript tests/test_shiny.R
