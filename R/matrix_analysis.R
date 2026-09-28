@@ -194,3 +194,25 @@ replicate_summary <- function(m, metadata, group_column, max_pairs = 100000L) {
                         if (any(!within)) stats::median(values[!within]) else NA_real_),
              sampled = pp$sampled)
 }
+
+# Exploratory comparison of the order of isolate pairs when measurements have
+# different units. A gap is the difference between empirical percentile ranks,
+# after making smaller distances mean greater similarity. It is not a p-value
+# or a biological cutoff, and it is based on the sampled pairs when sampling.
+pair_rank_gaps <- function(pairs, kind1 = "similarity",
+                           kind2 = "similarity", top = 10L) {
+  d <- pairs$data
+  if (nrow(d) < 3L) return(data.frame())
+  if (!kind1 %in% c("auto", "similarity", "correlation", "distance") ||
+      !kind2 %in% c("auto", "similarity", "correlation", "distance"))
+    stop("Unrecognized matrix type.")
+  score1 <- if (kind1 == "distance") -d$first else d$first
+  score2 <- if (kind2 == "distance") -d$second else d$second
+  n <- nrow(d)
+  d$rank_gap <- abs((rank(score1, ties.method = "average") -
+                     rank(score2, ties.method = "average")) / n)
+  d <- d[order(d$rank_gap, decreasing = TRUE), , drop = FALSE]
+  rownames(d) <- NULL
+  utils::head(d[c("sample_1", "sample_2", "first", "second", "rank_gap")],
+              as.integer(top))
+}
