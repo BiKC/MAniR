@@ -106,8 +106,6 @@ ui <- shiny::fluidPage(
                 "Same measurement and units in both matrices", value = FALSE),
               shiny::p(class = "small-help",
                 "Only enable raw differences when measurements are directly comparable. ANI percentages and MALDI scores are different quantities."),
-              shiny::numericInput("max_pairs", "Maximum pairs to analyze",
-                100000L, min = 1000L, max = 1000000L, step = 1000L),
               shiny::numericInput("permutations", "Mantel permutations",
                 999L, min = 99L, max = 9999L),
               shiny::p(class = "small-help",
@@ -125,18 +123,32 @@ ui <- shiny::fluidPage(
     shiny::mainPanel(width = 9,
       shiny::div(class = "main-panel",
         shiny::div(class = "results-toolbar",
-          shiny::div(class = "toolbar-field",
-            shiny::selectInput("palette", "Colors",
-              choices = c("RdBu", "BrBG", "PiYG", "PRGn", "PuOr", "RdYlBu",
-                          "Viridis", "YlOrRd", "Blues", "Greens", "Greys"),
-              selected = "RdBu")
+          shiny::conditionalPanel(
+            condition = "input.results_tab === 'Heatmaps'",
+            shiny::div(class = "toolbar-field",
+              shiny::selectInput("palette", "Colors",
+                choices = c("RdBu", "BrBG", "PiYG", "PRGn", "PuOr", "RdYlBu",
+                            "Viridis", "YlOrRd", "Blues", "Greens", "Greys"),
+                selected = "RdBu")
+            ),
+
           ),
           shiny::div(class = "toolbar-field",
             shiny::selectInput("metadata_column", "Annotation",
               choices = c("None" = ""))
           ),
-          shiny::div(class = "toolbar-field control-checkbox",
-            shiny::checkboxInput("show_numbers", "Show cell values", value = FALSE)
+          shiny::conditionalPanel(
+            condition = "input.results_tab === 'Heatmaps'",
+            shiny::div(class = "toolbar-field control-checkbox",
+              shiny::checkboxInput("show_numbers", "Show cell values", value = FALSE)
+            )
+          ),
+          shiny::conditionalPanel(
+            condition = "input.results_tab === 'Pairwise comparison'",
+            shiny::div(class = "toolbar-field contextual pair-limit",
+              shiny::numericInput("max_pairs", "Max pairs",
+                100000L, min = 1000L, max = 1000000L, step = 1000L)
+            )
           ),
           shiny::conditionalPanel(
             condition = "input.results_tab === 'Cluster comparison'",
@@ -152,29 +164,33 @@ ui <- shiny::fluidPage(
                                   class = "btn-default btn-sm")
             )
           ),
-          shiny::tags$details(class = "toolbar-more",
-            shiny::tags$summary("Display options"),
-            shiny::div(class = "toolbar-extra",
-              shiny::div(class = "toolbar-field control-checkbox",
-                shiny::checkboxInput("log_scale", "Log(1+x) color scaling",
-                  value = FALSE)
-              ),
-              shiny::div(class = "toolbar-field control-checkbox",
-                shiny::checkboxInput("zoom_enabled", "Zoom into large matrices",
-                  value = FALSE)
-              ),
-              shiny::conditionalPanel(
-                condition = "input.zoom_enabled",
-                shiny::div(class = "toolbar-field",
-                  shiny::numericInput("zoom_start", "First isolate",
-                    1L, min = 1L, step = 1L)
+          shiny::conditionalPanel(
+            condition = "input.results_tab === 'Heatmaps'",
+            shiny::tags$details(class = "toolbar-more",
+              shiny::tags$summary("Display options"),
+              shiny::div(class = "toolbar-extra",
+                shiny::div(class = "toolbar-field control-checkbox",
+                  shiny::checkboxInput("log_scale", "Log(1+x) color scaling",
+                    value = FALSE)
                 ),
-                shiny::div(class = "toolbar-field",
-                  shiny::numericInput("zoom_size", "Number of isolates",
-                    300L, min = 10L, max = 1000L, step = 50L)
+                shiny::div(class = "toolbar-field control-checkbox",
+                  shiny::checkboxInput("zoom_enabled", "Zoom into large matrices",
+                    value = FALSE)
+                ),
+                shiny::conditionalPanel(
+                  condition = "input.zoom_enabled",
+                  shiny::div(class = "toolbar-field",
+                    shiny::numericInput("zoom_start", "First isolate",
+                      1L, min = 1L, step = 1L)
+                  ),
+                  shiny::div(class = "toolbar-field",
+                    shiny::numericInput("zoom_size", "Number of isolates",
+                      300L, min = 10L, max = 1000L, step = 50L)
+                  )
                 )
               )
-            )
+            ),
+
           ),
           shiny::div(class = "toolbar-status",
             shiny::uiOutput("active_analysis")
@@ -195,36 +211,43 @@ ui <- shiny::fluidPage(
             shiny::p(class = "small-help",
               "Select a metadata category in the sidebar to describe how the first matrix differs within and between those groups. These are descriptive pairwise summaries, not an independent-sample test."),
             shiny::tableOutput("replicate_table")),
-          shiny::tabPanel("Matrix 1",
-            manir_guide(
-              "Every cell compares the isolate named on its row with the isolate named on its column. The diagonal compares an isolate with itself. Larger values mean more similar samples only for similarity and positive-correlation measurements.",
-              "Clustering puts isolates with related measurements next to each other; it does not change the values. The color bar shows a 0–1 display scale based on the data range, not necessarily the original numerical units. Hover over a cell for its original value. Metadata colors identify categories, not measured similarity."),
-            shiny::uiOutput("plot1_intro"), shiny::uiOutput("plot1_legend"),
-            shiny::uiOutput("plot1_ui"), shiny::verbatimTextOutput("plot1_cell")),
-          shiny::tabPanel("Matrix 2",
-            manir_guide(
-              "Read this matrix in the same way as matrix 1. Its clustering order can differ, and the display colors are scaled to this matrix's own numerical range.",
-              "Equal colors across the separate Matrix 1 and Matrix 2 plots do not imply equal biological measurements. Hover over any cell for the exact original value. Choose the same metadata track to see whether visual clusters correspond to the same sample categories."),
-            shiny::uiOutput("plot2_intro"), shiny::uiOutput("plot2_legend"),
-            shiny::uiOutput("plot2_ui"), shiny::verbatimTextOutput("plot2_cell")),
-          shiny::tabPanel("Combined (order 1)",
-            manir_guide(
-              "This split heatmap places matrix 1 above the diagonal and matrix 2 below it. Both triangles use the ordering calculated from matrix 1, so the same pair can be inspected in both methods.",
-              "Each triangle is normalized independently for display. Comparing the position of clusters is meaningful; directly comparing two color shades or subtracting their display values is not. The diagonal is displayed with a neutral midpoint color because it separates the two methods, not because its original measurements equal 0.5."),
-            shiny::uiOutput("combined1_intro"), shiny::uiOutput("combined1_legend"),
-            shiny::uiOutput("combined1_ui"), shiny::verbatimTextOutput("combined1_cell")),
-          shiny::tabPanel("Combined (order 2)",
-            manir_guide(
-              "The same split comparison, now ordered using matrix 2. The upper triangle is matrix 2 and the lower triangle is matrix 1.",
-              "Switch between both combined tabs to see how each method's ordering groups isolates. Triangle colors remain independently scaled and the diagonal is a visual separator. Inspect original values in the cell hover rather than using color as a shared measurement."),
-            shiny::uiOutput("combined2_intro"), shiny::uiOutput("combined2_legend"),
-            shiny::uiOutput("combined2_ui"), shiny::verbatimTextOutput("combined2_cell")),
-          shiny::tabPanel("Difference",
-            manir_guide(
-              "This tab calculates matrix 1 minus matrix 2 for each shared isolate pair. Zero is the midpoint of the diverging color scale; opposite sides represent opposite signs.",
-              "A difference is interpretable only when both matrices measure the same quantity in the same units and have compatible preprocessing. Two different measurement types, such as ANI percentages and MALDI spectral scores, should be examined with rank comparisons instead."),
-            shiny::uiOutput("difference_explainer"), shiny::uiOutput("difference_ui"),
-            shiny::verbatimTextOutput("difference_cell")),
+          shiny::tabPanel("Heatmaps",
+            shiny::div(class = "matrix-nav",
+              shiny::tabsetPanel(id = "matrix_view", type = "pills",
+              shiny::tabPanel("Matrix 1",
+                manir_guide(
+                  "Every cell compares the isolate named on its row with the isolate named on its column. The diagonal compares an isolate with itself. Larger values mean more similar samples only for similarity and positive-correlation measurements.",
+                  "Clustering puts isolates with related measurements next to each other; it does not change the values. The color bar shows a 0–1 display scale based on the data range, not necessarily the original numerical units. Hover over a cell for its original value. Metadata colors identify categories, not measured similarity."),
+                shiny::uiOutput("plot1_intro"), shiny::uiOutput("plot1_legend"),
+                shiny::uiOutput("plot1_ui"), shiny::verbatimTextOutput("plot1_cell")),
+              shiny::tabPanel("Matrix 2",
+                manir_guide(
+                  "Read this matrix in the same way as matrix 1. Its clustering order can differ, and the display colors are scaled to this matrix's own numerical range.",
+                  "Equal colors across the separate Matrix 1 and Matrix 2 plots do not imply equal biological measurements. Hover over any cell for the exact original value. Choose the same metadata track to see whether visual clusters correspond to the same sample categories."),
+                shiny::uiOutput("plot2_intro"), shiny::uiOutput("plot2_legend"),
+                shiny::uiOutput("plot2_ui"), shiny::verbatimTextOutput("plot2_cell")),
+              shiny::tabPanel("Combined (order 1)",
+                manir_guide(
+                  "This split heatmap places matrix 1 above the diagonal and matrix 2 below it. Both triangles use the ordering calculated from matrix 1, so the same pair can be inspected in both methods.",
+                  "Each triangle is normalized independently for display. Comparing the position of clusters is meaningful; directly comparing two color shades or subtracting their display values is not. The diagonal is displayed with a neutral midpoint color because it separates the two methods, not because its original measurements equal 0.5."),
+                shiny::uiOutput("combined1_intro"), shiny::uiOutput("combined1_legend"),
+                shiny::uiOutput("combined1_ui"), shiny::verbatimTextOutput("combined1_cell")),
+              shiny::tabPanel("Combined (order 2)",
+                manir_guide(
+                  "The same split comparison, now ordered using matrix 2. The upper triangle is matrix 2 and the lower triangle is matrix 1.",
+                  "Switch between both combined tabs to see how each method's ordering groups isolates. Triangle colors remain independently scaled and the diagonal is a visual separator. Inspect original values in the cell hover rather than using color as a shared measurement."),
+                shiny::uiOutput("combined2_intro"), shiny::uiOutput("combined2_legend"),
+                shiny::uiOutput("combined2_ui"), shiny::verbatimTextOutput("combined2_cell")),
+              shiny::tabPanel("Difference",
+                manir_guide(
+                  "This tab calculates matrix 1 minus matrix 2 for each shared isolate pair. Zero is the midpoint of the diverging color scale; opposite sides represent opposite signs.",
+                  "A difference is interpretable only when both matrices measure the same quantity in the same units and have compatible preprocessing. Two different measurement types, such as ANI percentages and MALDI spectral scores, should be examined with rank comparisons instead."),
+                shiny::uiOutput("difference_explainer"), shiny::uiOutput("difference_ui"),
+                shiny::verbatimTextOutput("difference_cell")),
+
+              )
+            )
+          ),
           shiny::tabPanel("Pairwise comparison",
             manir_guide(
               "Each dot is one distinct, unordered isolate pair. Its X position is the pair's value in matrix 1 and its Y position is the value for the same pair in matrix 2. Neither the diagonal nor mirrored duplicates are counted.",
