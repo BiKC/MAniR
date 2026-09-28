@@ -1,7 +1,7 @@
 # Reusable matrix calculations; no Shiny dependencies.
 
 matrix_order <- function(m, kind = c("auto", "similarity", "correlation", "distance"),
-                         cluster = TRUE, max_cluster = 2000L, linkage = "average") {
+                         cluster = TRUE, max_cluster = 2000L, linkage = "complete") {
   kind <- match.arg(kind)
   ids <- colnames(m)
   if (!cluster || nrow(m) > max_cluster)
@@ -155,11 +155,13 @@ adjusted_wallace <- function(labels_a, labels_b) {
 
 cluster_concordance <- function(a, b, kind_a = "similarity",
                                 kind_b = "similarity", k = 3L,
-                                max_n = 2000L) {
+                                max_n = 2000L, linkage = "complete") {
   if (!identical(rownames(a), rownames(b))) stop("Align matrices first.")
   if (k < 2L || k >= nrow(a)) stop("Choose between 2 and n-1 clusters.")
-  ca <- matrix_order(a, kind = kind_a, max_cluster = max_n)
-  cb <- matrix_order(b, kind = kind_b, max_cluster = max_n)
+  ca <- matrix_order(a, kind = kind_a, max_cluster = max_n,
+                     linkage = linkage)
+  cb <- matrix_order(b, kind = kind_b, max_cluster = max_n,
+                     linkage = linkage)
   if (is.null(ca$tree) || is.null(cb$tree))
     stop("Cluster concordance exceeds the configured clustering limit.")
   first <- stats::cutree(ca$tree, k = k)
