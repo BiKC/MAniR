@@ -85,3 +85,8 @@ these checks pass. The arXiv manuscript is outside this work scope.
   Upload action stays visible in a fixed sidebar footer, interpretation text
   starts collapsed, plots size to viewport and narrow windows fall back to
   normal scrolling. Added UI structure regression checks.
+
+- Grouped five heatmap views under a single primary Heatmaps tab and added
+  context-sensitive controls: color and zoom only for heatmaps, pair limits
+  only for pairwise analysis, and k only for cluster comparison. Successful
+  loading now opens Matrix 1 automatically, without page scrolling.
