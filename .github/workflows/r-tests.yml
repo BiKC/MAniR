@@ -1,0 +1,49 @@
+name: MAniR tests and benchmark smoke
+
+on:
+  push:
+    branches:
+      - main
+      - upgrade/**
+  pull_request:
+
+jobs:
+  r-tests:
+    name: R regression suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          cache-version: 1
+          extra-packages: |
+            any::data.table
+            any::fastcluster
+      - name: Test numerical correctness, files and plot export
+        run: Rscript tests/run_tests.R
+      - name: Parse and load the Shiny application
+        run: Rscript -e "stopifnot(inherits(source('app.R')$value, 'shiny.appobj'))"
+      - name: Benchmark smoke
+        run: Rscript benchmarks/benchmark.R --smoke
+      - name: Upload benchmark smoke results
+        uses: actions/upload-artifact@v4
+        with:
+          name: MAniR-benchmark-smoke
+          path: benchmarks/results/*-smoke.csv
+
+  windows-tests:
+    name: Windows regression suite
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          cache-version: 1
+      - name: Regression tests
+        run: Rscript tests/run_tests.R
+      - name: Parse and load application
+        run: Rscript -e "stopifnot(inherits(source('app.R')$value, 'shiny.appobj'))"
