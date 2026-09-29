@@ -90,3 +90,26 @@ these checks pass. The arXiv manuscript is outside this work scope.
   context-sensitive controls: color and zoom only for heatmaps, pair limits
   only for pairwise analysis, and k only for cluster comparison. Successful
   loading now opens Matrix 1 automatically, without page scrolling.
+
+## September 29, 2026: question-led research workflow
+
+- Added **Start here**, a task-based researcher home screen with five real
+  analysis questions and clear data prerequisites; loading an example or
+  user matrix returns to this screen.
+- Added exact original-value drilldown for any pair of shared isolates,
+  selection from the top ranked disagreements, and point highlighting on
+  the scatterplot. Rank-gap lists may use a reproducibly sampled set of
+  pairs, but direct lookup always reads original matrices.
+- Added metadata within-/between-group tables and separate original-scale
+  distribution plots for each matrix, with explicit caveats about
+  non-independent pairs and batch confounding.
+- Added editable research notes in Markdown with source and analysis details,
+  group summaries and optional explicit clustering. The report does not
+  trigger a Mantel test and does not claim typing accuracy.
+- Added researcher-entered matrix names, compact data-ready messages and
+  question-based navigation; preserved existing detailed tabs for advanced
+  users. Scientific summaries reverse distance direction when interpreting
+  pair relationships, while exact uploaded numbers are unchanged.
+- Added regression and Shiny navigation tests and the walkthrough at
+  docs/RESEARCH_WORKFLOWS.md. Benchmarks still require repeatable hardware
+  measurements before any performance claims.
