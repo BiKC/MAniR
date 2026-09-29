@@ -1,0 +1,22 @@
+Package: MAniR
+Type: Project
+Title: Interactive Pairwise Matrix Comparison for MALDI-TOF and Genomic Analysis
+Version: 3.0.0
+Authors@R: person("BiKC", role = "aut")
+Description: Shiny application to compare similarity, correlation and distance
+    matrices using scalable visualization, isolate-level metadata and
+    pairwise analytical summaries. The application is run directly from app.R.
+License: GPL-3
+Encoding: UTF-8
+Depends:
+    R (>= 4.2.0)
+Imports:
+    shiny,
+    plotly,
+    htmltools,
+    htmlwidgets,
+    openxlsx,
+    RColorBrewer
+Suggests:
+    data.table,
+    fastcluster

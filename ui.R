@@ -1,405 +1,345 @@
-library("shiny")
-library("shinyjs")
-library("shinyBS")
-library("shinyWidgets")
-library("openxlsx")
-library("RColorBrewer")
-library("corrplot")
-library("periscope")
-library("heatmaply")
-library("plotly")
-
-
-jscode <- "
-shinyjs.disableTab = function(name) {
-var tab = $('.nav li a[data-value=\"' + name + '\"]');
-tab.bind('click.tab', function(e) {
-e.preventDefault();
-return false;
-});
-tab.addClass('disabled');
-// on hover, show disabled cursor
-tab.hover(function() {
-$(this).css('cursor','not-allowed');
-}, function() {
-$(this).css('cursor','auto');
-});
-}
-
-shinyjs.enableTab = function(name) {
-var tab = $('.nav li a[data-value=\"' + name + '\"]');
-tab.unbind('click.tab');
-tab.removeClass('disabled');
-// reset hover style to hand pointing
-tab.hover(function() {
-$(this).css('cursor','pointer');
-}, function() {
-$(this).css('cursor','auto');
-});
-}
-
-shinyjs.clickTab = function(name) {
-var tab = $('.nav li a[data-value=\"' + name + '\"]');
-tab.click();
-}
-
-shinyjs.goToMatrix1tab = function() {
-    // set the active tab to the 'Matrix 1' tab if the current tab is the 'Instructions' tab
-    // note, multiple tabs can be active at the same time, so we need to check if the 'Instructions' tab is active
-    //instructions is the data-value of the a inside the li
-    if ($('.nav li a[data-value=\"Instructions\"]').parent().hasClass('active')) {
-        // click the 'Matrix 1' tab
-        tab = $('.nav li a[data-value=\"Matrix\ 1\"]');
-        tab.click();
-    }
-}
-"
-
-# Define UI for application that draws a histogram
-ui <- fluidPage(
-    # Application title
-    useShinyjs(),
-    shinyjs::extendShinyjs(text = jscode, functions = c("disableTab", "enableTab", "clickTab", "goToMatrix1tab")),
-    tags$head(tags$style(HTML("body {
-                                  background-color:#fffff9;
-                                  color:#2F3C7E;
-                                  }
-                              .well {
-                                  background-color:#2F3C7E;
-                                  color:#fffff9;
-                              }
-                              .sw-dropdown-in {
-                                  color: #2F3C7E;
-                              }
-                              .tab-content {
-                                padding:10px;
-                                background-color:#fffff9;
-                                color: #2F3C7E;
-                                border-radius:4px;
-                              }
-                              #outputPanel>li>a,
-                              li[role='presentation']>a {
-                               background-color:#DCD6D5FF;
-                              }
-                              #outputPanel>li.active>a{
-                               background-color:#FFF;
-                              }
-                              table, th, td {
-                                border: 1px solid black;
-                                padding:5px
-                              }
-                              ")),
-                tags$script(src = "https://cdn.plot.ly/plotly-2.14.0.min.js"),
-              tags$script(src = "custom_plotly.js")
-              ),
-    titlePanel("Correlation analysis"),
-    # Sidebar with a slider input for number of bins
-    sidebarLayout(
-        sidebarPanel(
-            tabsetPanel(
-                tabPanel(
-                    "Input file",
-                    fileInput("input_excel", "Excel containing the correlation data"),
-                    fluidRow(
-                        column(
-                            6,
-                            uiOutput("tab1")
-                        ),
-                        column(
-                            6,
-                            uiOutput("tab2")
-                        )
-                    ),
-                    # fluidrow for metadata tab
-                    fluidRow(
-                        column(
-                            6,
-                            uiOutput("tab3")
-                        )
-                    ),
-                    fluidRow(
-                        column(
-                            6,
-                            uiOutput("Yaxis", inline = TRUE)
-                        ),
-                        column(
-                            6,
-                            uiOutput("Xaxis", inline = TRUE)
-                        )
-                    ),
-                    actionButton("visualize", "Visualize the dataset"),
-                    tags$br(),
-                    tags$br(),
-                    tags$br(),
-                    tags$br(),
-                    tags$div(tags$strong("Source code:")),
-                    tags$a(
-                        img(src = "bikc_github.png", width = "100px", alt = "Github"),
-                        href =
-                            "https://github.com/BiKC"
-                    )
-                ),
-                tabPanel(
-                    "Plot settings",
-                    switchInput("legacymode", "Legacy mode", value = FALSE),
-                    sliderInput("dec", "Decimal places", 0, 3, 3, 1),
-                        sliderInput(
-                            "ncex", "Size of numbers in the plot",
-                            0.1, 10, 1.2, 0.1
-                        ),
-                    # legacy settings
-                    conditionalPanel(
-                        condition = "input.legacymode==true",
-                        sliderInput("clcex", "Size of colorscale numbers", 0.1, 10, 0.8, 0.1),
-                        sliderInput(
-                            "tlcex", "Size of text labels (row and column names)",
-                            0.1, 10, 0.8, 0.1
-                        ),
-                        sliderInput(
-                            "scale", "Scale of the plot (default 1=1000x1000)",
-                            0.5, 50, 1, 0.1
-                        ),
-                        sliderInput(
-                            "labelcex", "Size of the X/Y labels (combined plots)",
-                            1, 20, 3, 0.1
-                        ),
-                    ),
-                    # non-legacy settings
-                    # checkbox for showing dendrograms
-                    conditionalPanel(
-                        condition = "input.legacymode==false",
-                        # switchInput("add_title", "Add title", FALSE, size = "mini"),
-                        conditionalPanel(
-                            condition = "input.add_title==true",
-                            textInput("title", "Title", "Correlation plot")
-                        ),
-                        h3("Single plot specific settings"),
-                        switchInput("hide_colorbar", "Hide colorscale", TRUE, size = "mini"),
-                        switchInput("dendrograms", "Show dendrograms", FALSE, size = "mini"),
-                        switchInput("show_numbers", "Show numbers", TRUE, size = "mini"),
-                        h3("Combined plot specific settings"),
-                        switchInput("logscale", "Log scale", FALSE, size = "mini")
-                    ),
-                    selectInput("cmode", "Color mode",
-                        c("sequential", "diverging"),
-                        selected = "diverging"
-                    ),
-                    # Sequential colors
-                    conditionalPanel(
-                        condition = "input.cmode=='sequential'",
-                        selectizeInput(
-                            inputId = "sequentialcolor",
-                            label = "Colorscale",
-                            rev(c(
-                                "Oranges", "Purples", "Reds", "Blues", "Greens",
-                                "Greys", "OrRd", "YlOrRd", "YlOrBr", "YlGn"
-                            )),
-                            selected = "YlOrRd",
-                            options = list(render = I(
-                                '{
-                  option: function(item, escape) {
-                    return "<div style=\'display:flex;justify-content:space-between\'><strong>" + escape(item.value) + "</strong><img src=\'" +escape(item.value)+".png\'>"
-                  }
-                }'
-                            ))
-                        )
-                    ),
-                    # Diverging colors
-                    conditionalPanel(
-                        condition = "input.cmode=='diverging'",
-                        selectizeInput(
-                            inputId = "divergentcolor",
-                            label = "Colorscale",
-                            rev(c("RdBu", "BrBG", "PiYG", "PRGn", "PuOr", "RdYlBu")),
-                            selected = "RdBu",
-                            options = list(render = I(
-                                '{
-                    option: function(item, escape) {
-                      return "<div style=\'display:flex;justify-content:space-between\'><strong>" + escape(item.value) + "</strong><img src=\'" +escape(item.value)+".png\'>"
-                    }
-                  }'
-                            ))
-                        ),
-                    ),
-                ),
-                tabPanel(
-                    "Download plots",
-                    # Note to warn user that generating plots can take a while
-                    h3("Note:"),
-                    div("Generating plots can take a while. Please be patient."),
-                    tags$br(),
-                    # message displaying it only downloads non-legacy plots as html
-                    div("Only non-legacy plots are downloaded as html. Legacy plots are to be downloaded by right-clicking on the plot and selecting 'Save image as...'"),
-                    tags$br(),
-                    # Download button
-                    # download buttons for matrix 1, matrix 2, matrix 1 vs matrix 2 (ordered by 1) and matrix 1 vs matrix 2 (ordered by 2)
-                    # show actionbuttons for downloading plots
-                    actionBttn("action_download1", "Download matrix 1", icon("download")), tags$br(),
-                    actionBttn("action_download2", "Download matrix 2", icon("download")), tags$br(),
-                    actionBttn("action_download3", "Download matrix 1 vs matrix 2 (ordered by 1)", icon("download")), tags$br(),
-                    actionBttn("action_download4", "Download matrix 1 vs matrix 2 (ordered by 2)", icon("download")), tags$br(),
-                    bsAlert("alert"),
-                    # hide download buttons in conditional panel with false condition
-                    div(id = "downloadButtons", style = "height: 0px; overflow: hidden;",
-                        downloadButton("download1", "Download matrix 1", icon("download")),
-                        downloadButton("download2", "Download matrix 2", icon("download")),
-                        downloadButton("download3", "Download matrix 1 vs matrix 2 (ordered by 1)", icon("download")),
-                        downloadButton("download4", "Download matrix 1 vs matrix 2 (ordered by 2)", icon("download")),
-                    )
-                    #downloadButton("download", "Download plots", icon("download"), disabled = TRUE),
-                )
-            )
-        ),
-
-        # Show a plot of the generated distribution
-        mainPanel(
-            tabsetPanel(
-                id = "outputPanel",
-                tabPanel(
-                    "Instructions",
-                    div(id="myDiv"),
-                    h3("Correlation analysis tool"),
-                    div("The input should be provided in the form of an xlsx file.
-           The file should contain the data in the following format:"),
-                    tags$table(
-                        tags$tr(
-                            tags$th(""), tags$th("bacteria1"), tags$th("bacteria2"),
-                            tags$th("bacteria3"), tags$th("bacteria4"), tags$th("bacteria5")
-                        ),
-                        tags$tr(
-                            tags$th("bacteria1"), tags$td("100"), tags$td("98.5"),
-                            tags$td("97.5"), tags$td("96.5"), tags$td("95.5")
-                        ),
-                        tags$tr(
-                            tags$th("bacteria2"), tags$td("98.5"), tags$td("100"),
-                            tags$td("98.5"), tags$td("97.5"), tags$td("96.5")
-                        ),
-                        tags$tr(
-                            tags$th("bacteria3"), tags$td("97.5"), tags$td("98.5"),
-                            tags$td("100"), tags$td("98.5"), tags$td("97.5")
-                        ),
-                        tags$tr(
-                            tags$th("bacteria4"), tags$td("96.5"), tags$td("97.5"),
-                            tags$td("98.5"), tags$td("100"), tags$td("98.5")
-                        ),
-                        tags$tr(
-                            tags$th("bacteria5"), tags$td("95.5"), tags$td("96.5"),
-                            tags$td("97.5"), tags$td("98.5"), tags$td("100")
-                        )
-                    ),
-                    div(
-                        strong("Note: "),
-                        "The diagonal should always be 100 since this is the same thing you are comparing."
-                    ),
-                    div(
-                        strong("Note: "),
-                        "Row and column names are free to choose however you always need the same values in both.
-        Avoid spaces in these column and row names!"
-                    ),
-                    br(),
-                    tags$ol(
-                        tags$li("Upload the Excel file"),
-                        tags$li("Select the sheets containing the data. Note that the second sheet is optional. If provided, you can compare two correlation matrixes from different sheets."),
-                        tags$li("If two sheets are provided, you can change the labels for the X and Y axis for the combined plots. By default, the names of the sheets will be suggested."),
-                        tags$li("click on \"Visualize the dataset\". This can take a few seconds depending on the size of the dataset."),
-                        tags$li("To customize the plot, go to the tab \"Plot settings\" on the left and change the settings as you please.")
-                    ),
-                    br(),
-                    # advanced information about metadata, hidden in a collapsible panel
-                    bsCollapsePanel(
-                        #id = "advanced_info",
-                        # title of the panel, including a arrow symbol to indicate that it is collapsible
-                        title = tags$span(tags$i(class = "fa fa-arrow-right"), " Advanced information"),
-                        div(
-                            strong("Note: "),
-                            "The metadata should be provided in the same Excel file as the data but in a separate sheet. The sheet should contain the data in the following format:"
-                            # first column contains a sample id with the same name as the columns from the data sheet, the other columns contain the metadata with a header describing the metadata
-                        ),
-                        tags$table(
-                            tags$tr(
-                                tags$th("sample"), tags$th("metadata1"), tags$th("metadata2"),
-                                tags$th("...")
-                            ),
-                            tags$tr(
-                                tags$th("bacteria1"), tags$td("value1"), tags$td("value2"),
-                                tags$td("...")
-                            ),
-                            tags$tr(
-                                tags$th("bacteria2"), tags$td("value1"), tags$td("value2"),
-                                tags$td("...")
-                            ),
-                            tags$tr(
-                                tags$th("bacteria3"), tags$td("value1"), tags$td("value2"),
-                                tags$td("...")
-                            ),
-                            tags$tr(
-                                tags$th("bacteria4"), tags$td("value1"), tags$td("value2"),
-                                tags$td("...")
-                            ),
-                            tags$tr(
-                                tags$th("bacteria5"), tags$td("value1"), tags$td("value2"),
-                                tags$td("...")
-                            )
-                        ),
-                        div(
-                            strong("Note: "),
-                            "The first column should always contain the sample id. The name of this column is not important. The other columns can be named as you please."
-                        ),
-                        div(
-                            strong("Note: "),
-                            "The metadata sheet is optional. If you do not provide a metadata sheet, the plots will be generated without metadata."
-                        )
-                    ),
-                    actionButton("Samplefile", "Run the analysis on a sample file"),
-                    downloadButton("downloadSampleFile", "Download the sample file")
-                ),
-                tabPanel(
-                    title = "Matrix 1",
-                    conditionalPanel(
-                        condition = "input.legacymode==false",
-                        plotlyOutput("ANI", width = "100%", height = "80vh")
-                    ),
-                    conditionalPanel(
-                        condition = "input.legacymode==true",
-                        plotOutput("ANI_legacy", width = "100%", height = "80vh")
-                    )
-                ),
-                tabPanel(
-                    title = "Matrix 2",
-                    conditionalPanel(
-                        condition = "input.legacymode==false",
-                        plotlyOutput("MALDI", width = "100%", height = "80vh")
-                    ),
-                    conditionalPanel(
-                        condition = "input.legacymode==true",
-                        plotOutput("MALDI_legacy", width = "100%", height = "80vh")
-                    )
-                ),
-                tabPanel(
-                    title = "Matrix 1 vs Matrix 2 (ordered on matrix 1)",
-                    htmlOutput("ANIMALDI_Error"),
-                    conditionalPanel(
-                        condition = "input.legacymode==false",
-                        plotlyOutput("ANIMALDI", width = "100%", height = "80vh")
-                    ),
-                    conditionalPanel(
-                        condition = "input.legacymode==true",
-                        plotOutput("ANIMALDI_legacy", width = "100%", height = "80vh")
-                    )
-                ),
-                tabPanel(
-                    title = "Matrix 1 vs Matrix 2 (ordered on matrix 2)",
-                    htmlOutput("MALDIANI_Error"),
-                    conditionalPanel(
-                        condition = "input.legacymode==false",
-                        plotlyOutput("MALDIANI", width = "100%", height = "80vh")
-                    ),
-                    conditionalPanel(
-                        condition = "input.legacymode==true",
-                        plotOutput("MALDIANI_legacy", width = "100%", height = "80vh")
-                    )
-                )
-            )
-        )
+# MAniR: matrix comparison and scalable visualization.
+manir_guide <- function(lead, details = NULL) {
+  # Help stays one short line until opened, leaving the visualization visible.
+  preview <- strsplit(lead, "[.!?]")[[1L]][1L]
+  if (nchar(preview) > 108L) preview <- paste0(substr(preview, 1L, 105L), "...")
+  shiny::tags$details(class = "reading-guide",
+    shiny::tags$summary(shiny::strong("How to read this"),
+                        shiny::span(class = "guide-preview", preview)),
+    shiny::div(class = "guide-body",
+      shiny::p(lead),
+      if (!is.null(details))
+        shiny::tagList(shiny::strong("Further interpretation"), shiny::p(details))
     )
+  )
+}
+ui <- shiny::fluidPage(
+  shiny::tags$head(
+    shiny::tags$meta(name = "viewport", content = "width=device-width, initial-scale=1"),
+    shiny::tags$style(shiny::HTML("
+      body { background: #f7f9fb; color: #213547; }
+      .well { background: #fff; border-color: #dae2ea; }
+      .main-panel { background: #fff; padding: 18px; border: 1px solid #dae2ea;
+                    border-radius: 8px; }
+      .small-help { color: #56697a; font-size: .9em; margin-bottom: 10px; }
+      .plot-area { min-height: 520px; }
+      .metric { padding: 10px; margin: 6px 0; background: #f2f6f9;
+                border-left: 3px solid #487f9b; }
+      .tab-content { padding-top: 15px; }
+      .reading-guide { border-left: 3px solid #3c7494; background: #eef5fa;
+                       padding: 12px 16px; margin: 12px 0 20px; color: #234257;
+                       line-height: 1.45; border-radius: 4px; }
+      .reading-guide p { margin: 6px 0 0; }
+      .reading-guide details { margin-top: 8px; }
+      .reading-guide summary { cursor: pointer; font-weight: 600; }
+      .reading-guide details p { margin-top: 8px; max-width: 88ch; }
+      .metadata-key { display: flex; flex-wrap: wrap; align-items: center;
+                      gap: 7px 16px; margin: 8px 0 3px; font-size: 13px; }
+      .metadata-key .swatch { display: inline-block; width: 15px; height: 13px;
+                              border-radius: 2px; margin-right: 5px;
+                              vertical-align: middle; }
+      .metadata-key .key-title { font-weight: 600; color: #29465c; }
+      .section-note { margin: 13px 0 8px; color: #3b5668; }
+      .results-table { margin: 12px 0 20px; }
+      .main-panel .btn { margin: 7px 7px 7px 0; }
+    ")),
+    shiny::tags$link(rel = "stylesheet", type = "text/css",
+                     href = "workspace.css")
+  ),
+  shiny::div(class = "app-header",
+    shiny::h2("MAniR"),
+    shiny::span(class = "app-description",
+      "Compare pairwise similarities, correlations and distances")
+  ),
+  shiny::div(class = "workspace",
+  shiny::sidebarLayout(
+    shiny::sidebarPanel(width = 3,
+      shiny::div(class = "control-sidebar",
+        shiny::div(class = "sidebar-scroll",
+          shiny::div(class = "example-quick",
+            shiny::h4("Try MAniR with example data"),
+            shiny::p("12 synthetic isolates with ANI-like, MALDI-like and metadata matrices."),
+            shiny::actionButton("load_example", "Load example", class = "btn-primary"),
+            shiny::tags$details(
+              shiny::tags$summary("About the example / download"),
+              shiny::p("Synthetic demonstration data, not measured biological values."),
+              shiny::downloadButton("download_example", "Example workbook (.xlsx)")
+            )
+          ),
+          shiny::tags$details(class = "control-group", open = "open",
+            shiny::tags$summary("Upload matrices"),
+            shiny::div(class = "group-body",
+              shiny::fileInput("first_file", "Matrix 1",
+                accept = c(".xlsx", ".xlsm", ".csv", ".tsv", ".txt", ".gz", ".rds")),
+              shiny::uiOutput("first_sheet_ui"),
+              shiny::fileInput("second_file", "Matrix 2 (optional)",
+                accept = c(".xlsx", ".xlsm", ".csv", ".tsv", ".gz", ".rds")),
+              shiny::uiOutput("second_sheet_ui"),
+              shiny::fileInput("metadata_file", "Metadata (optional)",
+                accept = c(".xlsx", ".csv", ".tsv", ".rds")),
+              shiny::uiOutput("metadata_sheet_ui"),
+              shiny::textInput("label1", "Short name for matrix 1", value = "Matrix 1",
+                placeholder = "e.g. ANI from WGS"),
+              shiny::textInput("label2", "Short name for matrix 2", value = "Matrix 2",
+                placeholder = "e.g. MALDI spectral similarity"),
+              shiny::fileInput("order_file", "Sample order (optional)",
+                accept = c(".txt", ".csv", ".tsv")),
+              shiny::selectInput("kind1", "Matrix 1 represents",
+                choices = c("Similarity" = "similarity", "Correlation" = "correlation",
+                            "Distance" = "distance", "Unspecified" = "auto")),
+              shiny::selectInput("kind2", "Matrix 2 represents",
+                choices = c("Similarity" = "similarity", "Correlation" = "correlation",
+                            "Distance" = "distance", "Unspecified" = "auto")),
+              shiny::radioButtons("match_mode", "Compare samples",
+                choices = c("Identical IDs" = "strict",
+                            "Shared isolates" = "intersection"),
+                selected = "strict"),
+              shiny::p(class = "small-help",
+                "Similarity: larger means closer. Distance: smaller means closer. Correlation is between -1 and 1.")
+            )
+          ),
+          shiny::tags$details(class = "control-group",
+            shiny::tags$summary("Analysis settings"),
+            shiny::div(class = "group-body",
+              shiny::checkboxInput("cluster", "Cluster samples on load", value = TRUE),
+              shiny::selectInput("linkage", "Clustering linkage",
+                choices = c("Complete (original default)" = "complete",
+                            "Average" = "average", "Single" = "single",
+                            "Ward D2" = "ward.D2"), selected = "complete"),
+              shiny::checkboxInput("comparable_scales",
+                "Same measurement and units in both matrices", value = FALSE),
+              shiny::p(class = "small-help",
+                "Only enable raw differences when measurements are directly comparable. ANI percentages and MALDI scores are different quantities."),
+              shiny::numericInput("permutations", "Mantel permutations",
+                999L, min = 99L, max = 9999L),
+              shiny::p(class = "small-help",
+                "Changing the matrix types, linkage, matching rule or clustering requires loading again. Display controls on the right update immediately.")
+            )
+          )
+        ),
+        shiny::div(class = "sidebar-footer",
+          shiny::actionButton("visualize", "Load and analyze uploaded files",
+                              class = "btn-primary"),
+          shiny::uiOutput("sidebar_status")
+        )
+      )
+    ),
+    shiny::mainPanel(width = 9,
+      shiny::div(class = "main-panel",
+        shiny::div(class = "results-toolbar",
+          shiny::conditionalPanel(
+            condition = "input.results_tab === 'Heatmaps'",
+            shiny::div(class = "toolbar-field",
+              shiny::selectInput("palette", "Colors",
+                choices = c("RdBu", "BrBG", "PiYG", "PRGn", "PuOr", "RdYlBu",
+                            "Viridis", "YlOrRd", "Blues", "Greens", "Greys"),
+                selected = "RdBu")
+            )
+          ),
+          shiny::div(class = "toolbar-field",
+            shiny::selectInput("metadata_column", "Group / annotation",
+              choices = c("None" = ""))
+          ),
+          shiny::conditionalPanel(
+            condition = "input.results_tab === 'Heatmaps'",
+            shiny::div(class = "toolbar-field control-checkbox",
+              shiny::checkboxInput("show_numbers", "Show cell values", value = FALSE)
+            )
+          ),
+          shiny::conditionalPanel(
+            condition = "input.results_tab === 'Pairwise comparison'",
+            shiny::div(class = "toolbar-field contextual pair-limit",
+              shiny::numericInput("max_pairs", "Max pairs",
+                100000L, min = 1000L, max = 1000000L, step = 1000L)
+            )
+          ),
+          shiny::conditionalPanel(
+            condition = "input.results_tab === 'Cluster comparison'",
+            shiny::div(class = "toolbar-field contextual",
+              shiny::numericInput("cluster_k", "Clusters (k)",
+                3L, min = 2L, max = 100L)
+            )
+          ),
+          shiny::conditionalPanel(
+            condition = "input.results_tab === 'Overview'",
+            shiny::div(class = "toolbar-field control-checkbox",
+              shiny::actionButton("run_mantel", "Run Mantel test",
+                                  class = "btn-default btn-sm")
+            )
+          ),
+          shiny::conditionalPanel(
+            condition = "input.results_tab === 'Heatmaps'",
+            shiny::tags$details(class = "toolbar-more",
+              shiny::tags$summary("Display options"),
+              shiny::div(class = "toolbar-extra",
+                shiny::div(class = "toolbar-field control-checkbox",
+                  shiny::checkboxInput("log_scale", "Log(1+x) color scaling",
+                    value = FALSE)
+                ),
+                shiny::div(class = "toolbar-field control-checkbox",
+                  shiny::checkboxInput("zoom_enabled", "Zoom into large matrices",
+                    value = FALSE)
+                ),
+                shiny::conditionalPanel(
+                  condition = "input.zoom_enabled",
+                  shiny::div(class = "toolbar-field",
+                    shiny::numericInput("zoom_start", "First isolate",
+                      1L, min = 1L, step = 1L)
+                  ),
+                  shiny::div(class = "toolbar-field",
+                    shiny::numericInput("zoom_size", "Number of isolates",
+                      300L, min = 10L, max = 1000L, step = 50L)
+                  )
+                )
+              )
+            )
+          ),
+          shiny::div(class = "toolbar-status",
+            shiny::uiOutput("active_analysis")
+          )
+        ),
+        shiny::uiOutput("research_context"),
+        shiny::div(class = "results-shell",
+        shiny::tabsetPanel(id = "results_tab",
+          shiny::tabPanel("Start here", manir_research_start()),
+          shiny::tabPanel("Overview",
+            manir_guide(
+              "Start with the number of shared isolates and the relationship between the two matrices. Correlations show whether pairs that are high in one measurement also tend to be high in the other; they do not establish equivalence.",
+              "Pearson's r summarizes a linear relationship. Spearman's rho compares ranks and can detect a monotonic relationship on different scales. The same isolate appears in several pairs, so ordinary independent-observation p-values would be inappropriate. Use the optional Mantel permutation test for matrix association."),
+            shiny::uiOutput("overview"),
+            shiny::uiOutput("overview_insight"),
+            shiny::h4("Association between matrices"),
+            shiny::tableOutput("agreement"),
+            shiny::actionButton("overview_open_pairs",
+              "Inspect the pairs behind these numbers", class = "btn-default"),
+            shiny::uiOutput("mantel_note"),
+            shiny::verbatimTextOutput("mantel_result"),
+            shiny::h4("Within- and between-group values"),
+            shiny::p(class = "small-help",
+              "Select a metadata category in the sidebar to describe how the first matrix differs within and between those groups. These are descriptive pairwise summaries, not an independent-sample test."),
+            shiny::tableOutput("replicate_table")),
+          shiny::tabPanel("Heatmaps",
+            shiny::div(class = "matrix-nav",
+              shiny::tabsetPanel(id = "matrix_view", type = "pills",
+              shiny::tabPanel("Matrix 1",
+                manir_guide(
+                  "Every cell compares the isolate named on its row with the isolate named on its column. The diagonal compares an isolate with itself. Larger values mean more similar samples only for similarity and positive-correlation measurements.",
+                  "Clustering puts isolates with related measurements next to each other; it does not change the values. The color bar shows a 0–1 display scale based on the data range, not necessarily the original numerical units. Hover over a cell for its original value. Metadata colors identify categories, not measured similarity."),
+                shiny::uiOutput("plot1_intro"), shiny::uiOutput("plot1_legend"),
+                shiny::uiOutput("plot1_ui"), shiny::verbatimTextOutput("plot1_cell")),
+              shiny::tabPanel("Matrix 2",
+                manir_guide(
+                  "Read this matrix in the same way as matrix 1. Its clustering order can differ, and the display colors are scaled to this matrix's own numerical range.",
+                  "Equal colors across the separate Matrix 1 and Matrix 2 plots do not imply equal biological measurements. Hover over any cell for the exact original value. Choose the same metadata track to see whether visual clusters correspond to the same sample categories."),
+                shiny::uiOutput("plot2_intro"), shiny::uiOutput("plot2_legend"),
+                shiny::uiOutput("plot2_ui"), shiny::verbatimTextOutput("plot2_cell")),
+              shiny::tabPanel("Combined (order 1)",
+                manir_guide(
+                  "This split heatmap places matrix 1 above the diagonal and matrix 2 below it. Both triangles use the ordering calculated from matrix 1, so the same pair can be inspected in both methods.",
+                  "Each triangle is normalized independently for display. Comparing the position of clusters is meaningful; directly comparing two color shades or subtracting their display values is not. The diagonal is displayed with a neutral midpoint color because it separates the two methods, not because its original measurements equal 0.5."),
+                shiny::uiOutput("combined1_intro"), shiny::uiOutput("combined1_legend"),
+                shiny::uiOutput("combined1_ui"), shiny::verbatimTextOutput("combined1_cell")),
+              shiny::tabPanel("Combined (order 2)",
+                manir_guide(
+                  "The same split comparison, now ordered using matrix 2. The upper triangle is matrix 2 and the lower triangle is matrix 1.",
+                  "Switch between both combined tabs to see how each method's ordering groups isolates. Triangle colors remain independently scaled and the diagonal is a visual separator. Inspect original values in the cell hover rather than using color as a shared measurement."),
+                shiny::uiOutput("combined2_intro"), shiny::uiOutput("combined2_legend"),
+                shiny::uiOutput("combined2_ui"), shiny::verbatimTextOutput("combined2_cell")),
+              shiny::tabPanel("Difference",
+                manir_guide(
+                  "This tab calculates matrix 1 minus matrix 2 for each shared isolate pair. Zero is the midpoint of the diverging color scale; opposite sides represent opposite signs.",
+                  "A difference is interpretable only when both matrices measure the same quantity in the same units and have compatible preprocessing. Two different measurement types, such as ANI percentages and MALDI spectral scores, should be examined with rank comparisons instead."),
+                shiny::uiOutput("difference_explainer"), shiny::uiOutput("difference_ui"),
+                shiny::verbatimTextOutput("difference_cell"))
+              )
+            )
+          ),
+          shiny::tabPanel("Pairwise comparison",
+            manir_guide(
+              "Each dot is one distinct, unordered isolate pair. Its X position is the pair's value in matrix 1 and its Y position is the value for the same pair in matrix 2. Neither the diagonal nor mirrored duplicates are counted.",
+              "An upward pattern suggests positive association, while points far from the main pattern merit closer inspection. Different units are allowed here: compare ranks or correlations, not the raw distance from a one-to-one line. Pairwise observations share isolates, so they are not statistically independent."),
+            shiny::uiOutput("pairwise_intro"),
+            shiny::div(class = "pair-focus",
+              shiny::h4("Inspect a specific isolate pair"),
+              shiny::p(class = "small-help",
+                "Pick any two shared isolates to inspect exact values in both matrices, or choose one of the pairs with the largest rank differences."),
+              shiny::uiOutput("top_pairs_picker"),
+              shiny::div(class = "pair-selectors",
+                shiny::selectizeInput("inspect_isolate", "First isolate",
+                  choices = NULL, options = list(placeholder = "Search isolate...")),
+                shiny::selectizeInput("inspect_partner", "Second isolate",
+                  choices = NULL, options = list(placeholder = "Search second isolate..."))
+              ),
+              shiny::uiOutput("pair_inspection")
+            ),
+            shiny::div(class = "plot-frame",
+              shiny::plotOutput("scatter", height = "100%")
+            ),
+            shiny::h4("Pairs with the largest rank differences"),
+            shiny::p(class = "small-help",
+              "These are exploratory discrepancies in the relative ordering of pairs, not statistically significant outliers. A rank gap near 0 means the pair has a similar position among all evaluated pairs in both matrices. Orange rings mark up to five of these pairs in the scatterplot."),
+            shiny::tableOutput("rank_gaps"),
+            shiny::uiOutput("absolute_discrepancies_intro"),
+            shiny::tableOutput("discrepancies"),
+            shiny::downloadButton("download_pairs", "Download pairwise values (CSV)")),
+          shiny::tabPanel("Cluster comparison",
+            manir_guide(
+              "Each matrix is independently clustered and cut into the same chosen number of groups (k). The statistics compare which isolate pairs are grouped together, regardless of the arbitrary cluster numbers.",
+              "Adjusted Rand index (ARI) equals 1 for identical partitions and is near 0 for chance-level agreement under its adjustment model. Adjusted Wallace is directional: matrix 1 to matrix 2 asks whether pairs grouped together in the first remain together in the second, adjusted for chance. Reverse the direction for the other value. These numbers describe agreement, not biological accuracy or a probability that either method is correct."),
+            shiny::uiOutput("cluster_intro"),
+            shiny::uiOutput("cluster_insight"),
+            shiny::tableOutput("cluster_summary"),
+            shiny::h4("How the clusters overlap"),
+            shiny::tableOutput("cluster_overlap"),
+            shiny::h4("Cluster membership by isolate"),
+            shiny::p(class = "small-help",
+              "Cluster numbers are arbitrary. Cluster 1 from one matrix is not necessarily the same group as cluster 1 from the other."),
+            shiny::tableOutput("cluster_table"),
+            shiny::downloadButton("download_clusters", "Download cluster assignments")),
+          shiny::tabPanel("Metadata",
+            manir_guide(
+              "Metadata describe each isolate, such as its group, specimen source or experimental batch. Select a categorical field in the sidebar to show a colored annotation track next to the heatmaps.",
+              "Metadata categories are not automatically cluster labels or validation truth. A batch-associated cluster may reflect an experimental effect and needs separate investigation. Numeric metadata should not be interpreted as categories unless intentionally converted."),
+            shiny::uiOutput("metadata_group_status"),
+            shiny::tableOutput("group_overview"),
+            shiny::uiOutput("group_plot_ui"),
+            shiny::h4("Sample metadata"),
+            shiny::tableOutput("metadata_preview"),
+            shiny::uiOutput("metadata_note")),
+          shiny::tabPanel("Export",
+            manir_guide(
+              "CSV and RDS preserve the original matrix values. PNG, PDF, SVG and interactive HTML preserve the displayed ordering and palette, but figure colors may be normalized or raster-sampled.",
+              "Plots from large datasets are representative previews, not complete value tables. Export the CSV or RDS alongside your figures and save the settings manifest to record clustering, color mapping, pair sampling and your R environment."),
+            shiny::h4("Research notebook"),
+            shiny::p(class = "small-help",
+              "Save an editable Markdown summary of the dataset and your selected analyses. It is a starting point for your own interpretation, not an automatic scientific conclusion."),
+            shiny::textInput("research_question", "Your research question (optional)",
+              placeholder = "e.g. Do MALDI-TOF similarities reflect ANI relationships?"),
+            shiny::textAreaInput("research_notes", "Your observations and next steps",
+              placeholder = "What do you notice? Which pairs need follow-up? What are the limitations?",
+              rows = 3, width = "100%"),
+            shiny::checkboxInput("report_clusters",
+              "Include cluster statistics (calculate if needed; at most 2,000 isolates)",
+              value = FALSE),
+            shiny::downloadButton("download_research_summary", "Download research notes (.md)",
+                                  class = "btn-primary"),
+            shiny::hr(),
+            shiny::uiOutput("difference_download_notice"),
+            shiny::downloadButton("download_first", "Matrix 1 CSV"),
+            shiny::downloadButton("download_second", "Matrix 2 CSV"),
+            shiny::downloadButton("download_rds", "Analysis matrices (RDS)"),
+            shiny::downloadButton("download_first_png", "Matrix 1 PNG"),
+            shiny::downloadButton("download_pdf", "Matrix 1 PDF"),
+            shiny::downloadButton("download_svg", "Matrix 1 SVG"),
+            shiny::downloadButton("download_html", "Interactive HTML preview"),
+            shiny::downloadButton("download_combined_png", "Combined PNG"),
+            shiny::uiOutput("download_difference_ui"),
+            shiny::downloadButton("download_settings", "Analysis settings (text)")
+          )
+        )
+        )
+      )
+    )
+  )
+  )
 )

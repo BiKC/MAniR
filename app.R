@@ -1,38 +1,21 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
-
-# For local usage
-packages <- c(
-  "shiny", "shinyjs", "shinyBS", "shinyWidgets", "shinycssloaders",
-  "openxlsx", "RColorBrewer", "corrplot", "periscope", "heatmaply"
-)
-new_packages <- packages[!(packages %in% installed.packages()[, "Package"])]
-if (length(new_packages)) install.packages(new.packages)
-lapply(packages, require, character.only = TRUE)
-
-
-# For shinyapps.io
-library("shiny")
-library("shinyjs")
-library("shinyBS")
-library("shinyWidgets")
-library("openxlsx")
-library("RColorBrewer")
-library("corrplot")
-library("periscope")
-library("heatmaply")
-library("plotly")
-
-# import UI
-source("ui.R")
-# import server
-source("server.R")
-
-# Run the application
-shinyApp(ui = ui, server = server)
+# MAniR Shiny entry point. Dependencies are documented in README and renv.
+required <- c("shiny", "plotly", "htmltools", "htmlwidgets",
+              "openxlsx", "RColorBrewer")
+missing <- setdiff(required, rownames(installed.packages()))
+if (length(missing))
+  stop("Install required packages before launching: ",
+       paste(missing, collapse = ", "),
+       ". See README.md for installation instructions.")
+max_upload_mb <- as.numeric(Sys.getenv("MANIR_MAX_UPLOAD_MB", "1024"))
+if (!is.finite(max_upload_mb) || max_upload_mb < 1)
+  stop("MANIR_MAX_UPLOAD_MB must be a positive number.")
+options(shiny.maxRequestSize = max_upload_mb * 1024^2)
+source("R/matrix_io.R", local = TRUE)
+source("R/matrix_analysis.R", local = TRUE)
+source("R/research_workflows.R", local = TRUE)
+source("R/matrix_plot.R", local = TRUE)
+source("R/example_data.R", local = TRUE)
+source("R/research_ui.R", local = TRUE)
+source("ui.R", local = TRUE)
+source("server.R", local = TRUE)
+shiny::shinyApp(ui = ui, server = server)

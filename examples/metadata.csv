@@ -1,0 +1,13 @@
+sample_id,group,source,batch
+ISO_01,Group_A,urine,Batch_1
+ISO_02,Group_A,blood,Batch_2
+ISO_03,Group_A,stool,Batch_1
+ISO_04,Group_A,urine,Batch_2
+ISO_05,Group_B,blood,Batch_1
+ISO_06,Group_B,stool,Batch_2
+ISO_07,Group_B,urine,Batch_1
+ISO_08,Group_B,blood,Batch_2
+ISO_09,Group_C,stool,Batch_1
+ISO_10,Group_C,urine,Batch_2
+ISO_11,Group_C,blood,Batch_1
+ISO_12,Group_C,stool,Batch_2

@@ -41,3 +41,6 @@ vignettes/*.pdf
 # Shinyapps.io information
 rsconnect/
 .lintr
+
+# Generated benchmark measurements
+benchmarks/results/

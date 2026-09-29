@@ -1,0 +1,106 @@
+name: Capture real MAniR documentation screenshots
+
+on:
+  push:
+    branches:
+      - upgrade/scalable-analysis
+    paths:
+      - scripts/capture-docs-screenshots.js
+      - .github/workflows/docs-screenshots.yml
+      - app.R
+      - ui.R
+      - server.R
+      - R/**
+      - www/**
+      - examples/**
+  workflow_dispatch:
+
+concurrency:
+  group: manir-real-screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  capture-screens:
+    name: Real Shiny screenshot capture
+    if: github.ref == 'refs/heads/upgrade/scalable-analysis'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          cache-version: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install browser driver
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.1
+          if command -v google-chrome >/dev/null 2>&1; then
+            echo "CHROME_BIN=$(command -v google-chrome)" >> "$GITHUB_ENV"
+          elif command -v chromium >/dev/null 2>&1; then
+            echo "CHROME_BIN=$(command -v chromium)" >> "$GITHUB_ENV"
+          else
+            npx playwright install --with-deps chromium
+          fi
+
+      - name: Start real MAniR Shiny app
+        run: |
+          nohup Rscript -e "shiny::runApp('.', host='127.0.0.1', port=3838, launch.browser=FALSE)" \
+            > "$RUNNER_TEMP/manir-shiny.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/manir-shiny.pid"
+          for attempt in $(seq 1 90); do
+            if curl --silent --fail --output /dev/null http://127.0.0.1:3838; then
+              echo "MAniR is running"; break
+            fi
+            sleep 2
+          done
+          curl --silent --fail http://127.0.0.1:3838 >/dev/null || {
+            cat "$RUNNER_TEMP/manir-shiny.log"
+            exit 1
+          }
+
+      - name: Capture actual example-data screens
+        run: node scripts/capture-docs-screenshots.js
+        env:
+          MANIR_SCREENSHOT_URL: http://127.0.0.1:3838
+
+      - name: Upload screenshots for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: actual-manir-screenshots
+          path: docs/images/*.png
+          if-no-files-found: warn
+
+      - name: Store actual screenshots on development branch
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/images/*.png
+          if git diff --cached --quiet; then
+            echo "Documentation screenshots unchanged"
+          else
+            git commit -m "docs: update real Shiny screenshots from synthetic example"
+            # The docs may have changed while this browser job was running.
+            git fetch origin upgrade/scalable-analysis
+            git rebase origin/upgrade/scalable-analysis
+            git push origin HEAD:upgrade/scalable-analysis
+          fi
+
+      - name: Show Shiny server logs on failure
+        if: failure()
+        run: cat "$RUNNER_TEMP/manir-shiny.log" || true
