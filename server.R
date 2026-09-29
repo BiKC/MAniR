@@ -274,6 +274,9 @@ server <- function(input, output, session) {
       return(invisible(NULL))
     }
     current_goal(list(tab = tab, title = title, hint = hint))
+    if (is.null(input$research_question) ||
+        !nzchar(trimws(input$research_question)))
+      shiny::updateTextInput(session, "research_question", value = title)
     shiny::updateTabsetPanel(session, "results_tab", selected = tab)
   }
   shiny::observeEvent(input$start_agreement,
@@ -283,6 +286,10 @@ server <- function(input, output, session) {
   shiny::observeEvent(input$start_pairs,
     open_question("Pairwise comparison", "Which isolate pairs need follow-up?",
       "Select an unusual pair below to inspect its original values and sample groups.",
+      requires_two = TRUE))
+  shiny::observeEvent(input$overview_open_pairs,
+    open_question("Pairwise comparison", "Which pairs explain the matrix association?",
+      "The pair inspector uses exact original values, including pairs that were not in a scatterplot sample.",
       requires_two = TRUE))
   shiny::observeEvent(input$start_cluster,
     open_question("Cluster comparison", "Do the methods group isolates similarly?",
@@ -324,6 +331,12 @@ server <- function(input, output, session) {
       ),
       if (is.null(d$second))
         shiny::p("You can explore the matrix now. For method agreement and pair discrepancies, upload a second matrix."),
+      if (!is.null(d$second) &&
+          length(intersect(colnames(d$first), colnames(d$second))) <
+            max(nrow(d$first), nrow(d$second)))
+        shiny::p(sprintf(
+          "Only %d isolates are shared; the individual heatmaps still contain the unmatched samples.",
+          n_shared)),
       if (is.null(d$metadata))
         shiny::p("Add metadata if you want to explore known groups or possible batch patterns."),
       if (d$clustering_skipped)
@@ -422,6 +435,27 @@ server <- function(input, output, session) {
         shiny::p(if (identical(d$source, "synthetic example"))
           "ANI percentages and MALDI spectral similarities have different units. Look at Pearson/Spearman association and rank gaps; direct differences are disabled for this example."
           else "Direct differences are hidden until you confirm that the two matrices measure the same quantity in the same units.")
+    )
+  })
+  output$overview_insight <- shiny::renderUI({
+    d <- data()
+    if (is.null(d$second))
+      return(shiny::p(class = "section-note",
+        "With one matrix, explore the heatmap or upload a second matrix to compare methods."))
+    pairs <- pair_data()
+    stats <- manir_directional_association(pairs, d$kind1, d$kind2)
+    if (!is.finite(stats$spearman))
+      return(shiny::div(class = "start-status empty",
+        shiny::strong("Rank correlation is not estimable"),
+        shiny::p("The values may be constant or there may be too few usable isolate pairs. Inspect the original matrices.")))
+    shiny::div(class = "start-status ready",
+      shiny::strong(sprintf("For %s vs %s, Spearman rho = %s",
+        d$label1, d$label2, manir_fmt(stats$spearman))),
+      shiny::p(sprintf(
+        "Calculated from %s unordered isolate pairs%s. Values for distance matrices are reversed in this summary so that a larger oriented value always means greater similarity.",
+        format(stats$n, big.mark = ","),
+        if (pairs$sampled) " in a reproducible subset" else "")),
+      shiny::p("This describes the ranking of pairs, not whether either method is biologically correct. Check individual discrepancies and experimental metadata next.")
     )
   })
   output$agreement <- shiny::renderTable({
@@ -696,10 +730,10 @@ server <- function(input, output, session) {
       "At least two nonmissing sample pairs are needed."))
     current <- data()
     first_label <- if (identical(current$source, "synthetic example"))
-      "Illustrative ANI (%)" else paste("Matrix 1 (", current$kind1, ")", sep = "")
+      "Illustrative ANI (%)" else sprintf("%s (%s)", current$label1, current$kind1)
     second_label <- if (identical(current$source, "synthetic example"))
       "Illustrative MALDI similarity (0–1)" else
-        paste("Matrix 2 (", current$kind2, ")", sep = "")
+        sprintf("%s (%s)", current$label2, current$kind2)
     graphics::plot(d$first, d$second, pch = 19L,
                    col = grDevices::adjustcolor("#305f86", alpha.f = 0.58),
                    cex = 0.9, xlab = first_label, ylab = second_label,
@@ -762,6 +796,22 @@ server <- function(input, output, session) {
                         kind_b = data()$kind2, k = input$cluster_k,
                         linkage = data()$linkage)
   })
+  output$cluster_insight <- shiny::renderUI({
+    d <- data()
+    if (is.null(d$second))
+      return(shiny::p("Load a second matrix to compare cluster assignments."))
+    c <- concordance()
+    shiny::div(class = "start-status ready",
+      shiny::strong(sprintf("%d shared isolates were partitioned into %d groups in each matrix.",
+        nrow(c$assignments), input$cluster_k)),
+      shiny::p(sprintf(
+        "Adjusted Rand index: %s. Adjusted Wallace, %s to %s: %s; in reverse: %s.",
+        manir_fmt(c$ari), d$label1, d$label2,
+        manir_fmt(c$adjusted_wallace_1_to_2),
+        manir_fmt(c$adjusted_wallace_2_to_1))),
+      shiny::p("The group numbers are arbitrary. Use the overlap table to identify groups that split between methods, then inspect those isolates in the heatmap or pair view.")
+    )
+  })
   output$cluster_intro <- shiny::renderUI({
     shiny::req(has_two())
     d <- data()
@@ -771,9 +821,10 @@ server <- function(input, output, session) {
   })
   output$cluster_summary <- shiny::renderTable({
     c <- concordance()
+    d <- data()
     data.frame(measure = c("Adjusted Rand index",
-                             "Adjusted Wallace (matrix 1 -> matrix 2)",
-                             "Adjusted Wallace (matrix 2 -> matrix 1)"),
+                             sprintf("Adjusted Wallace (%s -> %s)", d$label1, d$label2),
+                             sprintf("Adjusted Wallace (%s -> %s)", d$label2, d$label1)),
                value = c(c$ari, c$adjusted_wallace_1_to_2,
                          c$adjusted_wallace_2_to_1))
   })
@@ -787,7 +838,9 @@ server <- function(input, output, session) {
   }, rownames = FALSE)
   output$cluster_table <- shiny::renderTable({
     assignment <- utils::head(concordance()$assignments, 100L)
-    names(assignment) <- c("Isolate", "Matrix 1 cluster", "Matrix 2 cluster")
+    d <- data()
+    names(assignment) <- c("Isolate", paste(d$label1, "cluster"),
+                           paste(d$label2, "cluster"))
     assignment
   }, rownames = FALSE)
   group_summary <- shiny::reactive({
