@@ -6,6 +6,13 @@ MAniR is an R Shiny application for investigating pairwise relationships between
 
 This development branch is **MAniR 3.0 prerelease**. The historical application remains available in the repository's Git history and on `main` until the upgrade is reviewed. Do not cite an unverified performance improvement: the benchmark scripts need to be run on specified hardware.
 
+**Start with your research question.** After loading data, the first screen
+offers five practical routes: compare methods, inspect unusual isolate pairs,
+compare clusters, explore known groups/batches, or inspect a matrix. You do
+not need to pick a statistic before you know what you are looking for. See the
+[step-by-step research walkthrough](docs/RESEARCH_WORKFLOWS.md) for an
+example and suggested next steps.
+
 For help understanding the plots, correlations, directional cluster agreement,
 rank gaps, metadata tracks and the restrictions on difference maps, see
 [Reading MAniR results](docs/INTERPRETING_RESULTS.md). The application also
@@ -54,7 +61,7 @@ On a desktop window, MAniR keeps the analysis results and control sidebar in
 files** button stays visible when you scroll through the upload options.
 The right-hand toolbar remains visible when you scroll through a result.
 
-After you load data, MAniR opens **Heatmaps → Matrix 1** automatically.
+After you load data, MAniR opens **Start here**, where you choose a research question. Choosing **Explore heatmaps** opens **Heatmaps → Matrix 1**.
 The primary navigation groups all five heatmap views under **Heatmaps**, with
 a compact secondary menu for Matrix 1, Matrix 2, both combined orderings
 and Difference. Other tabs are Overview, Pairwise comparison, Cluster
@@ -113,7 +120,7 @@ MAniR accepts **precomputed** MALDI-TOF, ANI, dDDH and other pairwise results. R
 
 ## Export and reproducibility
 
-The export tab provides exact input matrices as CSV, an RDS bundle containing both matrices, optional metadata and sample order, static PNG, PDF and SVG files, a standalone interactive HTML preview and a text manifest of analysis settings and R session information. Pairwise comparison and cluster assignments have their own CSV exports. PDF and SVG contain individual vector cells for matrices with at most 150 isolates and a representative raster for larger inputs. Interactive HTML previews include at most 300 isolates and require Pandoc for self-contained HTML. Large-image exports use representative raster views with up to 1,200 rows and columns, not an exact full-resolution image of a 10,000-isolate matrix. Exact difference matrices can be exported as CSV when both datasets have comparable numerical units.
+The Export tab also provides an editable Markdown research summary with optional researcher notes, group summaries and explicitly requested cluster statistics. It does not run expensive permutation tests automatically. The export tab provides exact input matrices as CSV, an RDS bundle containing both matrices, optional metadata and sample order, static PNG, PDF and SVG files, a standalone interactive HTML preview and a text manifest of analysis settings and R session information. Pairwise comparison and cluster assignments have their own CSV exports. PDF and SVG contain individual vector cells for matrices with at most 150 isolates and a representative raster for larger inputs. Interactive HTML previews include at most 300 isolates and require Pandoc for self-contained HTML. Large-image exports use representative raster views with up to 1,200 rows and columns, not an exact full-resolution image of a 10,000-isolate matrix. Exact difference matrices can be exported as CSV when both datasets have comparable numerical units.
 
 To use MAniR reproducibly, archive the source matrices, the metadata, the settings manifest, the installed R package versions, the generated plots and the resulting tables. Never infer a biological cutoff from the normalized heatmap colors; inspect the original numeric values and justify cutoffs from the relevant study.
 
