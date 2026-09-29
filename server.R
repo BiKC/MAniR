@@ -612,6 +612,74 @@ server <- function(input, output, session) {
                         format(p$evaluated_pairs, big.mark = ","), p$seed)
               else " All pairs are included."))
   })
+  output$top_pairs_picker <- shiny::renderUI({
+    if (!has_two()) return(NULL)
+    d <- data()
+    top <- pair_rank_gaps(pair_data(), d$kind1, d$kind2, top = 20L)
+    if (!nrow(top)) return(NULL)
+    labels <- sprintf("%s / %s (rank gap %.3f)",
+                      top$sample_1, top$sample_2, top$rank_gap)
+    shiny::selectInput("rank_pair", "Explore a pair with different rankings",
+      choices = c("Choose from the largest rank gaps" = "",
+                  stats::setNames(as.character(seq_len(nrow(top))), labels)))
+  })
+  shiny::observeEvent(input$rank_pair, {
+    if (is.null(input$rank_pair) || !nzchar(input$rank_pair) ||
+        !has_two()) return()
+    d <- data()
+    top <- pair_rank_gaps(pair_data(), d$kind1, d$kind2, top = 20L)
+    ix <- suppressWarnings(as.integer(input$rank_pair))
+    if (is.na(ix) || ix < 1L || ix > nrow(top)) return()
+    shiny::updateSelectizeInput(session, "inspect_isolate",
+      selected = top$sample_1[ix])
+    shiny::updateSelectizeInput(session, "inspect_partner",
+      selected = top$sample_2[ix])
+  })
+  selected_pair <- shiny::reactive({
+    d <- data()
+    first <- input$inspect_isolate
+    second <- input$inspect_partner
+    shiny::req(length(first) == 1L, length(second) == 1L,
+               nzchar(first), nzchar(second), first != second)
+    manir_pair_inspection(d$first, d$second, first, second,
+      metadata = d$metadata, field = input$metadata_column,
+      comparable = can_difference())
+  })
+  output$pair_inspection <- shiny::renderUI({
+    d <- loaded()
+    if (is.null(d) || is.null(d$second))
+      return(shiny::p(class = "small-help",
+        "Load two matrices to inspect corresponding values for a pair."))
+    if (is.null(input$inspect_isolate) || is.null(input$inspect_partner) ||
+        !nzchar(input$inspect_isolate) || !nzchar(input$inspect_partner) ||
+        identical(input$inspect_isolate, input$inspect_partner))
+      return(shiny::p(class = "small-help",
+        "Choose two different shared isolates above."))
+    p <- selected_pair()
+    fmt <- function(x) if (length(x) != 1L || !is.finite(x))
+      "Missing" else format(signif(x, 6), trim = TRUE)
+    shiny::div(class = "pair-inspection-values",
+      shiny::div(shiny::span(d$label1),
+                 shiny::strong(fmt(p$first))),
+      shiny::div(shiny::span(d$label2),
+                 shiny::strong(fmt(p$second))),
+      if (!is.null(p$difference))
+        shiny::div(shiny::span("Difference, original units"),
+                   shiny::strong(fmt(p$difference))),
+      if (nzchar(p$metadata_field) &&
+          (!is.na(p$group_1) || !is.na(p$group_2)))
+        shiny::p(class = "pair-annotation",
+          sprintf("%s: %s = %s; %s = %s",
+                  p$metadata_field, p$isolate_1,
+                  if (is.na(p$group_1)) "missing" else p$group_1,
+                  p$isolate_2,
+                  if (is.na(p$group_2)) "missing" else p$group_2)),
+      if (is.null(p$difference))
+        shiny::p(class = "small-help",
+          "Original values shown separately. A difference is omitted because equivalent measurement units have not been confirmed.")
+    )
+  })
+
   output$scatter <- shiny::renderPlot({
     shiny::req(has_two())
     p <- pair_data()
@@ -637,6 +705,19 @@ server <- function(input, output, session) {
       highlighted <- match(paste(gap$sample_1, gap$sample_2, sep = "|"), key)
       graphics::points(d$first[highlighted], d$second[highlighted],
                        pch = 1L, cex = 1.65, lwd = 1.5, col = "#c45a35")
+    }
+    if (length(input$inspect_isolate) == 1L &&
+        length(input$inspect_partner) == 1L &&
+        nzchar(input$inspect_isolate) && nzchar(input$inspect_partner) &&
+        !identical(input$inspect_isolate, input$inspect_partner)) {
+      chosen <- tryCatch(selected_pair(), error = function(e) NULL)
+      if (!is.null(chosen) && is.finite(chosen$first) &&
+          is.finite(chosen$second)) {
+        graphics::points(chosen$first, chosen$second, pch = 21L,
+                         bg = "#fac06e", col = "#803a1d", cex = 2, lwd = 1.4)
+        graphics::legend("topright", legend = "Selected pair",
+                         pch = 21L, pt.bg = "#fac06e", bty = "n", cex = 0.85)
+      }
     }
   })
   output$rank_gaps <- shiny::renderTable({
@@ -677,7 +758,7 @@ server <- function(input, output, session) {
     shiny::req(has_two())
     d <- data()
     shiny::p(class = "section-note",
-      sprintf("Clustering %d shared isolates independently in each matrix, using %d clusters and %s linkage. Change k in the sidebar to explore the stability of agreement.",
+      sprintf("Clustering %d shared isolates independently in each matrix, using %d clusters and %s linkage. Change k in the toolbar to see how grouping agreement changes.",
               length(shared()$ids), input$cluster_k, d$linkage))
   })
   output$cluster_summary <- shiny::renderTable({
@@ -701,6 +782,78 @@ server <- function(input, output, session) {
     names(assignment) <- c("Isolate", "Matrix 1 cluster", "Matrix 2 cluster")
     assignment
   }, rownames = FALSE)
+  group_summary <- shiny::reactive({
+    d <- data()
+    shiny::req(!is.null(d$metadata), length(input$metadata_column) == 1L,
+               nzchar(input$metadata_column))
+    manir_group_overview(d$first, d$second, d$metadata,
+      input$metadata_column,
+      max_pairs = if (is.null(input$max_pairs)) 100000L else input$max_pairs)
+  })
+  output$metadata_group_status <- shiny::renderUI({
+    d <- data()
+    if (is.null(d$metadata))
+      return(shiny::div(class = "start-status empty",
+        shiny::strong("Add sample metadata to investigate groups"),
+        shiny::p("Upload a file with isolate IDs and a biological group, replicate or batch column, then reload the data.")))
+    if (is.null(input$metadata_column) || !nzchar(input$metadata_column))
+      return(shiny::div(class = "start-status empty",
+        shiny::strong("Choose a group or batch field"),
+        shiny::p(sprintf("Select one of these fields in the toolbar: %s.",
+                         paste(names(d$metadata), collapse = ", ")))))
+    shiny::div(class = "start-status ready",
+      shiny::strong(sprintf("Exploring '%s'", input$metadata_column)),
+      shiny::p("These are descriptive pair summaries. Isolate pairs are reused, so the table and plots do not provide independent-sample p-values."))
+  })
+  output$group_overview <- shiny::renderTable({
+    x <- group_summary()
+    names(x) <- c("Matrix", "Pair category", "Pairs", "Mean",
+                  "Median", "Sampled")
+    x
+  }, digits = 5, rownames = FALSE)
+  output$group_plot_ui <- shiny::renderUI({
+    d <- data()
+    if (is.null(d$metadata) || is.null(input$metadata_column) ||
+        !nzchar(input$metadata_column)) return(NULL)
+    shiny::tagList(
+      shiny::h4("Distribution of pairwise measurements"),
+      shiny::p(class = "small-help",
+        "Each method uses its own original numerical scale. Boxplots show the spread of sampled or full pair values within and between groups, not independent biological replicates."),
+      shiny::plotOutput("group_distributions", height = "315px")
+    )
+  })
+  output$group_distributions <- shiny::renderPlot({
+    d <- data()
+    shiny::req(d$metadata, length(input$metadata_column) == 1L,
+               nzchar(input$metadata_column))
+    matrices <- list(d$first)
+    labels <- c(d$label1)
+    if (!is.null(d$second)) {
+      matrices <- c(matrices, list(d$second))
+      labels <- c(labels, d$label2)
+    }
+    n <- length(matrices)
+    old <- graphics::par(mfrow = c(1L, n), mar = c(5, 4.5, 3.4, 1),
+                         oma = c(0, 0, 0, 0))
+    on.exit(graphics::par(old), add = TRUE)
+    for (i in seq_len(n)) {
+      gp <- manir_group_pairs(matrices[[i]], d$metadata,
+                             input$metadata_column)
+      if (nrow(gp$data) && length(unique(gp$data$group)) > 1L) {
+        graphics::boxplot(value ~ group, data = gp$data,
+          main = labels[i], ylab = "Original matrix value", xlab = "Pair category",
+          col = c("#d4e9f4", "#b7d3d9"), outline = FALSE)
+        graphics::mtext(if (gp$sampled) "Representative sample of pairs"
+                        else "All available pairs",
+                        side = 3, line = 0.15, cex = 0.65)
+      } else {
+        graphics::plot.new()
+        graphics::title(main = labels[i])
+        graphics::text(.5, .5,
+          "At least one within- and one between-group pair are needed.")
+      }
+    }
+  }, res = 110)
   output$metadata_preview <- shiny::renderTable({
     shiny::req(data()$metadata)
     utils::head(data()$metadata, 100L)
@@ -734,7 +887,7 @@ server <- function(input, output, session) {
   })
   output$metadata_note <- shiny::renderUI({
     shiny::req(data()$metadata)
-    shiny::p("Showing up to 100 metadata rows. Choose a categorical metadata column in the sidebar to compare within-group and between-group matrix values.")
+    shiny::p("Showing up to 100 metadata rows. Choose a categorical metadata field in the toolbar to compare within-group and between-group measurements.")
   })
 
   mantel_result <- shiny::eventReactive(input$run_mantel, {
