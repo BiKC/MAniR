@@ -15,6 +15,10 @@ on:
       - examples/**
   workflow_dispatch:
 
+concurrency:
+  group: manir-real-screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -91,6 +95,9 @@ jobs:
             echo "Documentation screenshots unchanged"
           else
             git commit -m "docs: update real Shiny screenshots from synthetic example"
+            # The docs may have changed while this browser job was running.
+            git fetch origin upgrade/scalable-analysis
+            git rebase origin/upgrade/scalable-analysis
             git push origin HEAD:upgrade/scalable-analysis
           fi
 
