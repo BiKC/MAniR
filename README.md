@@ -18,6 +18,28 @@ rank gaps, metadata tracks and the restrictions on difference maps, see
 [Reading MAniR results](docs/INTERPRETING_RESULTS.md). The application also
 displays a short explanation directly on each analysis tab.
 
+## See the actual interface
+
+These screenshots are captured from a running copy of MAniR with the bundled
+**synthetic example**. They show the real Shiny controls and output, rather
+than design illustrations. The [research walkthrough](docs/RESEARCH_WORKFLOWS.md)
+has a screenshot for each step.
+
+![MAniR start page showing available research questions after loading the example](docs/images/start-here.png)
+
+*The Start here page: load data, then choose the question you want to answer.*
+
+| Explore sample relationships | Investigate discordant isolate pairs |
+| --- | --- |
+| ![Actual MAniR similarity heatmap](docs/images/heatmap.png) | ![Actual MAniR pairwise comparison](docs/images/pairwise-comparison.png) |
+
+| Compare cluster assignments | Explore groups and batches |
+| --- | --- |
+| ![Actual MAniR cluster comparison](docs/images/cluster-comparison.png) | ![Actual MAniR metadata group analysis](docs/images/metadata-groups.png) |
+
+*Screens are recorded at 1680 × 1000 using the synthetic example. Layout and
+colors may differ at other window sizes or after you adjust settings.*
+
 ## Installation
 
 Install R 4.2 or later. The upload limit defaults to 1,024 MB and can be configured with the `MANIR_MAX_UPLOAD_MB` environment variable. Plan available RAM for at least the uploaded matrices plus working data, especially for two 10,000-isolate matrices. For those larger projects, RDS or CSV is preferable to Excel. In the repository directory, run:
