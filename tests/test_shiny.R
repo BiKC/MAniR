@@ -3,6 +3,8 @@ source("R/matrix_io.R")
 source("R/matrix_analysis.R")
 source("R/matrix_plot.R")
 source("R/example_data.R")
+source("R/research_workflows.R")
+source("R/research_ui.R")
 source("server.R")
 
 ids <- c("001", "002", "003", "004")
@@ -32,6 +34,12 @@ shiny::testServer(server, {
   # A palette change should affect only rendering, not the loaded matrix.
   session$setInputs(palette = "Viridis")
   stopifnot(identical(loaded()$first, loaded_data$first))
+  session$setInputs(start_pairs = 1)
+  stopifnot(is.null(current_goal()))
+  session$setInputs(start_heatmap = 1)
+  stopifnot(identical(current_goal()$tab, "Heatmaps"))
+  session$setInputs(start_groups = 1)
+  stopifnot(identical(current_goal()$tab, "Heatmaps"))
 })
 
 shiny::testServer(server, {
@@ -50,6 +58,23 @@ shiny::testServer(server, {
   # subtracted or exported as a misleading difference matrix.
   session$setInputs(comparable_scales = TRUE)
   stopifnot(!can_difference())
+  session$setInputs(start_agreement = 1)
+  stopifnot(identical(current_goal()$tab, "Overview"))
+  session$setInputs(start_pairs = 1)
+  stopifnot(identical(current_goal()$tab, "Pairwise comparison"))
+  session$setInputs(inspect_isolate = "ISO_02", inspect_partner = "ISO_03")
+  exact <- selected_pair()
+  stopifnot(abs(exact$second - 0.52) < 1e-12,
+            is.null(exact$difference))
+  session$setInputs(metadata_column = "group", start_groups = 1)
+  stopifnot(identical(current_goal()$tab, "Metadata"),
+            nrow(group_summary()) == 4L)
+  session$setInputs(start_cluster = 1)
+  stopifnot(identical(current_goal()$tab, "Cluster comparison"))
+  session$setInputs(start_export = 1)
+  stopifnot(identical(current_goal()$tab, "Export"))
+  session$setInputs(back_to_questions = 1)
+  stopifnot(is.null(current_goal()))
   # An ordinary upload after the example must replace it without carrying
   # across the example metadata or second matrix.
   session$setInputs(first_file = file_info, visualize = 1)
