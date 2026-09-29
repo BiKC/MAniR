@@ -427,15 +427,23 @@ server <- function(input, output, session) {
   output$agreement <- shiny::renderTable({
     shiny::req(has_two())
     pp <- pair_data()
-    stats <- matrix_agreement(pp)
+    d <- data()
+    stats <- manir_directional_association(pp, d$kind1, d$kind2)
+    raw <- if (can_difference()) matrix_agreement(pp) else NULL
+    adjusted <- identical(d$kind1, "distance") ||
+      identical(d$kind2, "distance")
     data.frame(
-      Measure = c("Valid isolate pairs", "Pearson r", "Spearman rho",
+      Measure = c("Valid isolate pairs",
+                  if (adjusted) "Pearson r (distance direction adjusted)"
+                  else "Pearson r",
+                  if (adjusted) "Spearman rho (distance direction adjusted)"
+                  else "Spearman rho",
                   if (can_difference()) c("Mean absolute difference",
-                                                  "Root mean squared difference")),
+                                          "Root mean squared difference")),
       Value = c(stats$n, signif(stats$pearson, 5),
                 signif(stats$spearman, 5),
                 if (can_difference())
-                  c(signif(stats$mae, 5), signif(stats$rmse, 5)))
+                  c(signif(raw$mae, 5), signif(raw$rmse, 5)))
     )
   })
   output$mantel_note <- shiny::renderUI({
@@ -905,6 +913,34 @@ server <- function(input, output, session) {
                      r$observed, r$p_two_sided, r$permutations, r$seed))
   })
 
+  output$download_research_summary <- shiny::downloadHandler(
+    filename = function() "MAniR_research_notes.md",
+    content = function(file) {
+      d <- data()
+      max_pairs <- if (is.null(input$max_pairs)) 100000L else input$max_pairs
+      pairs <- if (is.null(d$second)) NULL else pair_data()
+      field <- if (is.null(input$metadata_column)) "" else input$metadata_column
+      groups <- if (!is.null(d$metadata) && nzchar(field))
+        group_summary() else NULL
+      clusters <- NULL
+      if (isTRUE(input$report_clusters) && !is.null(d$second)) {
+        m <- shared()
+        k <- if (is.null(input$cluster_k)) 3L else as.integer(input$cluster_k)
+        if (nrow(m$first) <= 2000L && k >= 2L && k < nrow(m$first))
+          clusters <- concordance()
+        else
+          shiny::showNotification(
+            "Cluster statistics were omitted: the dataset or k is outside the supported limits.",
+            type = "warning", duration = 7)
+      }
+      question <- if (is.null(input$research_question)) "" else input$research_question
+      notes <- if (is.null(input$research_notes)) "" else input$research_notes
+      text <- manir_research_report(d, pairs = pairs, group_table = groups,
+        group_field = field, cluster = clusters, comparable = can_difference(),
+        question = question, notes = notes, max_pairs = max_pairs)
+      writeLines(text, con = file, useBytes = TRUE)
+    }
+  )
   output$download_first <- shiny::downloadHandler(
     filename = function() "MAniR_matrix1.csv",
     content = function(file) write_matrix_csv(data()$first, file))
@@ -989,8 +1025,10 @@ server <- function(input, output, session) {
       d <- data()
       writeLines(c(
         paste("MAniR generated:", Sys.time()),
-        paste("First matrix:", nrow(d$first), "isolates"),
-        paste("Second matrix:", if (is.null(d$second)) "None" else nrow(d$second)),
+        paste("First matrix:", d$label1, nrow(d$first), "isolates"),
+        paste("Second matrix:",
+          if (is.null(d$second)) "None" else
+            paste(d$label2, nrow(d$second), "isolates")),
         paste("Matrix kinds:", d$kind1, d$kind2),
         paste("Sample matching:", d$matching),
         paste("Cluster requested:", input$cluster),
