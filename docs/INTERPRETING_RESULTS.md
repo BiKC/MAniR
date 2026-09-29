@@ -25,6 +25,11 @@ transformation changes the input type.
 
 ## Reading single heatmaps
 
+![Screenshot from the running MAniR app: heatmap](images/heatmap.png)
+
+*The actual Matrix 1 tab with the bundled synthetic data.*
+
+
 Each cell is one row-isolate versus column-isolate comparison. A symmetric
 matrix repeats the same number on both sides of the diagonal. Clustering
 reorders the rows and columns **together**, placing similar patterns adjacent.
@@ -47,6 +52,11 @@ over the plot.
 
 ## The two combined views
 
+![Screenshot from the running MAniR app: combined matrix](images/combined-heatmap.png)
+
+*The actual split-matrix view. Its two triangles are scaled separately.*
+
+
 A split matrix uses **matrix 1 above the diagonal** and **matrix 2 below
 the diagonal**, with the same isolates along both axes. Combined (order 1)
 uses clustering from matrix 1; Combined (order 2) puts matrix 2 above the
@@ -60,6 +70,15 @@ is a visual separator, not a measured 0.5. Hover to see which matrix
 contributed a cell and its original value.
 
 ## Pairwise comparison and rank gaps
+
+![Screenshot from the running MAniR app: pairwise scatterplot](images/pairwise-comparison.png)
+
+*The actual scatterplot and pair selection workflow.*
+
+![Actual original-value pair inspector](images/pair-inspector.png)
+
+*Inspect the original numerical values for a selected isolate pair.*
+
 
 Each scatterplot dot shows one unique unordered pair of isolates.
 For n isolates, there are n(n-1)/2 pairs, excluding the diagonal and the
@@ -98,6 +117,12 @@ number of evaluated pairs. The rank gaps and displayed summary then
 describe **that sample**, not necessarily every pair in the input.
 
 ## Cluster agreement
+
+![Actual MAniR cluster comparison with overlap table](images/cluster-comparison.png)
+
+*Compare the group assignments across methods instead of comparing arbitrary
+cluster numbers directly.*
+
 
 Choose the number of clusters k in the sidebar. MAniR independently
 clusters each matrix using its specified type, then cuts both trees into
@@ -149,6 +174,16 @@ hover or export the exact difference matrix to interpret magnitudes.
 A difference by itself does not establish which method is correct.
 
 ## Metadata and reproducibility
+
+![Actual MAniR metadata comparison](images/metadata-groups.png)
+
+*Within-group and between-group summaries for the selected metadata field.*
+
+![Actual MAniR export page](images/research-notes-export.png)
+
+*Save an editable research record alongside the original matrices and
+figures.*
+
 
 Metadata categories (group, source, batch, etc.) are descriptive.
 Within-group versus between-group pair summaries may suggest something
