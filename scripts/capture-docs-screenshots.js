@@ -83,7 +83,7 @@ async function capture() {
 
     // Real Plotly heatmap, with the default metadata field in the example.
     await page.locator("#start_heatmap").click();
-    await page.locator("#plot1_interactive .main-svg")
+    await page.locator("#plot1_interactive .main-svg").first()
       .waitFor({ timeout: maxWait });
     await waitForText(page, "#plot1_intro", "12 isolates");
     await page.waitForTimeout(600);
@@ -92,7 +92,7 @@ async function capture() {
     // Real split-triangle view, both matrices ordered by the first.
     await page.locator('a[data-toggle="tab"]')
       .filter({ hasText: /^Combined \(order 1\)$/ }).first().click();
-    await page.locator("#combined1_interactive .main-svg")
+    await page.locator("#combined1_interactive .main-svg").first()
       .waitFor({ timeout: maxWait });
     await page.waitForTimeout(600);
     await save(page, "combined-heatmap.png");
