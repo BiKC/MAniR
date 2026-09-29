@@ -45,6 +45,8 @@ server <- function(input, output, session) {
           kind1 <- "similarity"
           kind2 <- "similarity"
           match_mode <- "strict"
+          label1 <- "ANI (synthetic)"
+          label2 <- "MALDI (synthetic)"
           cluster_requested <- TRUE
           linkage <- "complete"
           shiny::incProgress(0.40)
@@ -52,6 +54,10 @@ server <- function(input, output, session) {
           kind1 <- input$kind1
           kind2 <- input$kind2
           match_mode <- input$match_mode
+          label1 <- trimws(if (is.null(input$label1)) "Matrix 1" else input$label1)
+          label2 <- trimws(if (is.null(input$label2)) "Matrix 2" else input$label2)
+          if (!nzchar(label1)) label1 <- "Matrix 1"
+          if (!nzchar(label2)) label2 <- "Matrix 2"
           cluster_requested <- isTRUE(input$cluster)
           linkage <- input$linkage
           f <- input$first_file
@@ -136,6 +142,7 @@ server <- function(input, output, session) {
                is.null(explicit) &&
                (nrow(a) > 2000L || (!is.null(b) && nrow(b) > 2000L)),
              kind1 = kind1, kind2 = kind2,
+             label1 = label1, label2 = label2,
              linkage = linkage)
       }, error = function(e) {
         shiny::showNotification(conditionMessage(e), type = "error",
@@ -157,17 +164,16 @@ server <- function(input, output, session) {
                 sprintf(" | %s in matrix 2",
                         format(nrow(d$second), big.mark = ","))))
   })
-  # After loading, open the result rather than leaving the researcher
-  # at an empty Overview tab. Display-only controls then update it in place.
-  show_loaded_heatmap <- function() {
-    shiny::updateTabsetPanel(session, "results_tab", selected = "Heatmaps")
-    shiny::updateTabsetPanel(session, "matrix_view", selected = "Matrix 1")
+  # Put the research question first. The user can jump directly to the
+  # relevant analysis without first learning the list of statistical tabs.
+  show_research_start <- function() {
+    shiny::updateTabsetPanel(session, "results_tab", selected = "Start here")
   }
   shiny::observeEvent(input$visualize, {
     result <- analyze_input(example = FALSE)
     if (!is.null(result)) {
       loaded(result)
-      show_loaded_heatmap()
+      show_research_start()
     }
   })
   shiny::observeEvent(input$load_example, {
@@ -178,10 +184,12 @@ server <- function(input, output, session) {
     shiny::updateCheckboxInput(session, "cluster", value = TRUE)
     shiny::updateSelectInput(session, "linkage", selected = "complete")
     shiny::updateNumericInput(session, "cluster_k", value = 3)
+    shiny::updateTextInput(session, "label1", value = "Matrix 1")
+    shiny::updateTextInput(session, "label2", value = "Matrix 2")
     result <- analyze_input(example = TRUE)
     if (!is.null(result)) {
       loaded(result)
-      show_loaded_heatmap()
+      show_research_start()
     }
   })
   output$download_example <- shiny::downloadHandler(
@@ -189,23 +197,138 @@ server <- function(input, output, session) {
     content = function(file) manir_write_example_workbook(file)
   )
 
+  # Isolate searches use server-side Selectize so a 10k-isolate project
+  # does not inject tens of thousands of options into the browser.
+  shiny::observeEvent(loaded(), {
+    d <- loaded()
+    if (is.null(d)) return()
+    ids <- if (is.null(d$second)) colnames(d$first) else
+      intersect(colnames(d$first), colnames(d$second))
+    first_default <- if (identical(d$source, "synthetic example"))
+      "ISO_02" else ids[1L]
+    second_default <- if (identical(d$source, "synthetic example"))
+      "ISO_03" else ids[min(2L, length(ids))]
+    shiny::updateSelectizeInput(session, "inspect_isolate",
+      choices = ids, selected = first_default, server = TRUE)
+    shiny::updateSelectizeInput(session, "inspect_partner",
+      choices = ids, selected = second_default, server = TRUE)
+  })
+
   data <- shiny::reactive({ shiny::req(loaded()); loaded() })
   output$active_analysis <- shiny::renderUI({
-    d <- data()
-    if (identical(d$source, "synthetic example")) {
-      return(shiny::p(class = "small-help",
-        "Currently displayed: synthetic ANI-like and MALDI-like similarity matrices. This example always uses similarity inputs, even if a dropdown below is changed. Reload the example to reset the controls."))
+    d <- loaded()
+    if (is.null(d))
+      return(shiny::span(class = "small-help", "No data loaded"))
+    changed <- !identical(d$source, "synthetic example") &&
+      ((!is.null(input$kind1) && !identical(input$kind1, d$kind1)) ||
+       (!is.null(input$kind2) && !identical(input$kind2, d$kind2)) ||
+       (!is.null(input$linkage) && !identical(input$linkage, d$linkage)) ||
+       (!is.null(input$match_mode) && !identical(input$match_mode, d$matching)))
+    shiny::div(
+      shiny::span(class = "data-indicator",
+        sprintf("%s · %s isolates%s",
+          if (identical(d$source, "synthetic example")) "Teaching example"
+          else "Your data", format(nrow(d$first), big.mark = ","),
+          if (is.null(d$second)) "" else
+            sprintf(" · %s shared", length(intersect(colnames(d$first),
+                                                   colnames(d$second)))))),
+      if (changed)
+        shiny::span(class = "settings-warning",
+          "Settings changed. Click Load and analyze to apply.")
+    )
+  })
+  current_goal <- shiny::reactiveVal(NULL)
+  output$research_context <- shiny::renderUI({
+    goal <- current_goal()
+    if (is.null(goal) || !identical(input$results_tab, goal$tab)) return(NULL)
+    shiny::div(class = "research-context",
+      shiny::strong(goal$title),
+      shiny::span(goal$hint),
+      shiny::actionButton("back_to_questions", "All questions",
+        class = "btn-link btn-sm")
+    )
+  })
+  shiny::observeEvent(input$back_to_questions, {
+    current_goal(NULL)
+    shiny::updateTabsetPanel(session, "results_tab", selected = "Start here")
+  })
+  open_question <- function(tab, title, hint, requires_two = FALSE,
+                            requires_metadata = FALSE) {
+    d <- loaded()
+    if (is.null(d)) {
+      shiny::showNotification(
+        "Load the teaching example or upload a matrix first.",
+        type = "message", duration = 6)
+      return(invisible(NULL))
     }
-    changed <- (!is.null(input$kind1) && !identical(input$kind1, d$kind1)) ||
-      (!is.null(input$kind2) && !identical(input$kind2, d$kind2)) ||
-      (!is.null(input$linkage) && !identical(input$linkage, d$linkage))
-    shiny::p(class = "small-help",
-      sprintf("Currently displayed: %s (matrix 1), %s (matrix 2); %s linkage.%s",
-              d$kind1, if (is.null(d$second)) "not loaded" else d$kind2,
-              d$linkage,
-              if (changed)
-                " You have changed analysis settings. Click Load and analyze to apply them."
-              else ""))
+    if (requires_two && is.null(d$second)) {
+      shiny::showNotification(
+        "This question needs two matrices for the same isolates. Add a second matrix and reload.",
+        type = "message", duration = 8)
+      return(invisible(NULL))
+    }
+    if (requires_metadata && is.null(d$metadata)) {
+      shiny::showNotification(
+        "This question needs sample metadata. Upload a metadata table with matching isolate IDs.",
+        type = "message", duration = 8)
+      return(invisible(NULL))
+    }
+    current_goal(list(tab = tab, title = title, hint = hint))
+    shiny::updateTabsetPanel(session, "results_tab", selected = tab)
+  }
+  shiny::observeEvent(input$start_agreement,
+    open_question("Overview", "Do the two methods agree?",
+      "Start with the correlation and inspect the scatterplot if individual pairs differ.",
+      requires_two = TRUE))
+  shiny::observeEvent(input$start_pairs,
+    open_question("Pairwise comparison", "Which isolate pairs need follow-up?",
+      "Select an unusual pair below to inspect its original values and sample groups.",
+      requires_two = TRUE))
+  shiny::observeEvent(input$start_cluster,
+    open_question("Cluster comparison", "Do the methods group isolates similarly?",
+      "Use the cluster-overlap table; change the number of clusters if justified.",
+      requires_two = TRUE))
+  shiny::observeEvent(input$start_groups,
+    open_question("Metadata", "Do sample groups or batches show a pattern?",
+      "Select the biological group or experimental batch in the toolbar.",
+      requires_metadata = TRUE))
+  shiny::observeEvent(input$start_heatmap, {
+    open_question("Heatmaps", "Explore the sample relationship matrix",
+      "Hover over cells for original values; try the combined view when two matrices are loaded.")
+    if (!is.null(loaded()))
+      shiny::updateTabsetPanel(session, "matrix_view", selected = "Matrix 1")
+  })
+  shiny::observeEvent(input$start_export,
+    open_question("Export", "Record and export your findings",
+      "Save editable notes along with original matrix values and figures."))
+
+  output$research_status <- shiny::renderUI({
+    d <- loaded()
+    if (is.null(d))
+      return(shiny::div(class = "start-status empty",
+        shiny::strong("First, load your data"),
+        shiny::p("Use the example button on the left to see a complete analysis, or upload your own matrix. Add a second matrix to compare methods and metadata to examine groups or batches.")))
+    n_shared <- if (is.null(d$second)) NULL else
+      length(intersect(colnames(d$first), colnames(d$second)))
+    shiny::div(class = "start-status ready",
+      shiny::strong(if (identical(d$source, "synthetic example"))
+        "Teaching example ready (fictional data)" else "Your dataset is ready"),
+      shiny::div(class = "start-facts",
+        shiny::span(sprintf("%s: %d isolates", d$label1, nrow(d$first))),
+        if (!is.null(d$second))
+          shiny::span(sprintf("%s: %d isolates; %d shared",
+                              d$label2, nrow(d$second), n_shared)),
+        if (!is.null(d$metadata))
+          shiny::span(sprintf("Metadata: %s",
+                              paste(names(d$metadata), collapse = ", ")))
+      ),
+      if (is.null(d$second))
+        shiny::p("You can explore the matrix now. For method agreement and pair discrepancies, upload a second matrix."),
+      if (is.null(d$metadata))
+        shiny::p("Add metadata if you want to explore known groups or possible batch patterns."),
+      if (d$clustering_skipped)
+        shiny::p("Clustering was skipped for a large dataset. Use an imported sample order or smaller subset for cluster comparisons.")
+    )
   })
   has_two <- shiny::reactive(!is.null(data()$second))
   subset_if_needed <- function(m, ids) {
@@ -268,7 +391,8 @@ server <- function(input, output, session) {
   }
   pair_data <- shiny::reactive({
     m <- shared()
-    paired_values(m$first, m$second, max_pairs = input$max_pairs)
+    paired_values(m$first, m$second, max_pairs =
+                    if (is.null(input$max_pairs)) 100000L else input$max_pairs)
   })
 
   output$overview <- shiny::renderUI({
