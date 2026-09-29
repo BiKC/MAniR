@@ -10,6 +10,11 @@ The application now starts with a question rather than a list of statistical
 tools. You can work through a whole analysis without needing to know which
 statistic to choose in advance.
 
+![Actual Start here screen in running MAniR](images/start-here.png)
+
+*Actual Shiny app after loading the bundled synthetic example. Choose a
+research question to jump directly to the relevant results.*
+
 ## Begin with your own data
 
 1. Upload your first matrix. CSV and RDS are preferable for very large
@@ -33,6 +38,12 @@ as measured biological evidence.
 
 ## Question 1: Do the methods describe similar relationships?
 
+![Actual MAniR overview showing method association](images/method-overview.png)
+
+*Overview: the original matrices' association summary, with a direct link to
+inspect the isolate pairs behind it.*
+
+
 Click **Compare the methods**. Start with Spearman's rank correlation:
 it summarizes whether isolate pairs that rank high in one method tend to
 rank high in the other. Pearson's r describes a linear relationship.
@@ -46,6 +57,17 @@ test uses whole-isolate label permutations for complete datasets of at most
 400 isolates. It tests matrix association, not equivalent typing accuracy.
 
 ## Question 2: Which isolate pairs deserve follow-up?
+
+![Actual MAniR pairwise comparison after loading example data](images/pairwise-comparison.png)
+
+*Each scatterplot point represents a unique isolate pair. The pair inspector
+and rank-gap list appear in this view.*
+
+![Close-up of the actual pair inspector](images/pair-inspector.png)
+
+*Select two isolates to read the original values and available metadata.
+The highlighted example pair uses fictional data.*
+
 
 Click **Find unusual pairs**. MAniR lists pairs with the largest **rank gaps**:
 pairs occupying noticeably different positions in the two ranked lists.
@@ -66,6 +88,12 @@ or normalized preview.
 
 ## Question 3: Do the methods group isolates similarly?
 
+![Actual MAniR cluster comparison and overlap table](images/cluster-comparison.png)
+
+*Cluster comparison: agreement measures, overlap and memberships for shared
+isolates.*
+
+
 Click **Compare clusters**. Pick the number of clusters (k) in the toolbar.
 Each matrix is clustered independently using your selected linkage and then
 cut into k groups. The overlap table shows exactly how memberships
@@ -83,6 +111,12 @@ precomputed sample order.
 
 ## Question 4: Are known groups, replicates or batches reflected in the data?
 
+![Actual MAniR metadata summaries and group distributions](images/metadata-groups.png)
+
+*Choose a metadata field to see descriptive within-group and between-group
+measurements on each matrix's original scale.*
+
+
 Click **Explore my groups**. Select a group, replicate identifier or batch
 column from **Group / annotation** in the results toolbar. MAniR shows
 within-group and between-group pair counts, mean/median values and separate
@@ -94,6 +128,17 @@ and experimental batches can also be confounded. The summaries are
 descriptive and are not a formal test of batch effects or discrimination.
 
 ## Question 5: What does a particular cell mean?
+
+![Actual MAniR matrix view with example data](images/heatmap.png)
+
+*The first matrix view. Hover over a cell in the live app for its exact
+original numerical value.*
+
+![Actual MAniR split-triangle combined heatmap](images/combined-heatmap.png)
+
+*The combined view displays different input matrices in the two triangles;
+each triangle uses independent display normalization.*
+
 
 Click **Explore heatmaps** and hover over the cell to see the original
 value. The two combined views put one matrix above the diagonal and the
@@ -109,6 +154,12 @@ MALDI similarity is on a 0–1 scale, use the scatterplot and rank-gap
 inspection instead of subtracting the matrices.
 
 ## Record your observations
+
+![Actual MAniR export panel with illustrative researcher notes entered for the screenshot](images/research-notes-export.png)
+
+*The export page with illustrative notes entered during screenshot capture.
+The app does not automatically write these observations or conclusions.*
+
 
 Click **Open exports** or visit **Export** when you have explored the
 question. Enter your research question and write your observations and
