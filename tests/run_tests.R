@@ -3,6 +3,8 @@ source("R/matrix_io.R")
 source("R/matrix_analysis.R")
 source("R/matrix_plot.R")
 source("R/example_data.R")
+source("R/research_workflows.R")
+source("R/research_ui.R")
 
 expect_error <- function(expr, pattern = NULL) {
   e <- tryCatch({force(expr); NULL}, error = function(e) conditionMessage(e))
@@ -296,6 +298,100 @@ test("metadata colors keep their meaning across both matrix orders", {
             all(vapply(p$x$layout$shapes,
                        function(x) identical(x$yref, "paper") && x$y0 > 1,
                        logical(1L))))
+})
+
+
+test("research question choices are concrete and available on the start page", {
+  source("ui.R", local = TRUE)
+  html <- htmltools::renderTags(ui)$html
+  for (text in c("Start here", "What do you want to find out?",
+                 "Do two methods give similar results?",
+                 "Which isolate pairs deserve a closer look?",
+                 "Do both methods make the same groups?",
+                 "Are known groups or batches reflected in the data?",
+                 "I want to inspect my matrix.",
+                 "inspect_isolate", "inspect_partner",
+                 "Download research notes", "group_plot_ui")) {
+    if (!grepl(text, html, fixed = TRUE))
+      stop("Missing research workflow control or help: ", text)
+  }
+  for (id in c("start_agreement", "start_pairs", "start_cluster",
+               "start_groups", "start_heatmap", "start_export",
+               "inspect_isolate", "inspect_partner", "research_question",
+               "research_notes")) {
+    occurrences <- gregexpr(paste0('id="', id, '"'), html,
+                             fixed = TRUE)[[1L]]
+    stopifnot(length(occurrences) == 1L, occurrences[1L] != -1L)
+  }
+})
+
+test("pair inspection preserves exact values and distinguishes incomparable units", {
+  demo <- manir_load_example()
+  p <- manir_pair_inspection(demo$first, demo$second, "ISO_02", "ISO_03",
+                             demo$metadata, "group")
+  stopifnot(isTRUE(all.equal(p$first, demo$first["ISO_02", "ISO_03"])),
+            isTRUE(all.equal(p$second, .52)),
+            is.null(p$difference), identical(p$group_1, "Group_A"),
+            identical(p$group_2, "Group_A"))
+  same <- manir_pair_inspection(demo$first, demo$first, "ISO_02", "ISO_03",
+                                comparable = TRUE)
+  stopifnot(identical(same$difference, 0))
+  expect_error(manir_pair_inspection(demo$first, demo$second,
+                                      "ISO_02", "ISO_02"), "different")
+  expect_error(manir_pair_inspection(demo$first, demo$second,
+                                      "not_an_isolate", "ISO_02"), "present")
+})
+
+test("within- and between-group comparison retains original scales and sample accounting", {
+  demo <- manir_load_example()
+  result <- manir_group_overview(demo$first, demo$second,
+                                  demo$metadata, "group")
+  stopifnot(nrow(result) == 4L,
+            identical(unique(result$matrix), c("Matrix 1", "Matrix 2")),
+            sum(result$pairs[result$matrix == "Matrix 1"]) == 66L,
+            sum(result$pairs[result$matrix == "Matrix 2"]) == 66L)
+  plot_values <- manir_group_pairs(demo$first, demo$metadata, "group")
+  stopifnot(nrow(plot_values$data) == 66L,
+            !plot_values$sampled,
+            identical(sort(unique(plot_values$data$group)),
+                      c("Between", "Within")))
+  expect_error(manir_group_overview(demo$first, metadata = demo$metadata,
+                                      field = "missing"), "Select")
+})
+
+test("direction-adjusted association treats distances as distances", {
+  demo <- manir_load_example()
+  pair <- paired_values(demo$first, demo$second)
+  related <- manir_directional_association(pair, "similarity", "similarity")
+  opposite <- manir_directional_association(pair, "distance", "similarity")
+  stopifnot(isTRUE(all.equal(related$pearson, -opposite$pearson)),
+            isTRUE(all.equal(related$spearman, -opposite$spearman)),
+            related$n == 66L)
+})
+
+test("research notes are editable, truthful and contain no mixed-scale difference", {
+  demo <- manir_load_example()
+  dataset <- c(demo, list(source = "synthetic example",
+                         matching = "strict", linkage = "complete",
+                         kind1 = "similarity", kind2 = "similarity",
+                         label1 = "ANI (synthetic)", label2 = "MALDI (synthetic)"))
+  pairs <- paired_values(demo$first, demo$second)
+  groups <- manir_group_overview(demo$first, demo$second,
+                                  demo$metadata, "group")
+  notes <- manir_research_report(dataset, pairs, groups, "group",
+             comparable = FALSE,
+             question = "Do these methods describe similar relationships?",
+             notes = "Recheck the discordant pair with original data.")
+  joined <- paste(notes, collapse = "\n")
+  stopifnot(grepl("SYNTHETIC", joined),
+            grepl("Spearman", joined),
+            grepl("Recheck the discordant pair", joined),
+            grepl("Raw differences omitted", joined),
+            !grepl("Mean absolute difference", joined))
+  single <- dataset
+  single$second <- NULL
+  one <- manir_research_report(single)
+  stopifnot(!grepl("Pairwise relationship", paste(one, collapse = "\n")))
 })
 
 test("workspace separates scrolling inputs from persistent live controls", {
