@@ -78,6 +78,10 @@ ui <- shiny::fluidPage(
               shiny::fileInput("metadata_file", "Metadata (optional)",
                 accept = c(".xlsx", ".csv", ".tsv", ".rds")),
               shiny::uiOutput("metadata_sheet_ui"),
+              shiny::textInput("label1", "Short name for matrix 1", value = "Matrix 1",
+                placeholder = "e.g. ANI from WGS"),
+              shiny::textInput("label2", "Short name for matrix 2", value = "Matrix 2",
+                placeholder = "e.g. MALDI spectral similarity"),
               shiny::fileInput("order_file", "Sample order (optional)",
                 accept = c(".txt", ".csv", ".tsv")),
               shiny::selectInput("kind1", "Matrix 1 represents",
@@ -133,7 +137,7 @@ ui <- shiny::fluidPage(
             )
           ),
           shiny::div(class = "toolbar-field",
-            shiny::selectInput("metadata_column", "Annotation",
+            shiny::selectInput("metadata_column", "Group / annotation",
               choices = c("None" = ""))
           ),
           shiny::conditionalPanel(
@@ -194,8 +198,10 @@ ui <- shiny::fluidPage(
             shiny::uiOutput("active_analysis")
           )
         ),
+        shiny::uiOutput("research_context"),
         shiny::div(class = "results-shell",
         shiny::tabsetPanel(id = "results_tab",
+          shiny::tabPanel("Start here", manir_research_start()),
           shiny::tabPanel("Overview",
             manir_guide(
               "Start with the number of shared isolates and the relationship between the two matrices. Correlations show whether pairs that are high in one measurement also tend to be high in the other; they do not establish equivalence.",
@@ -250,6 +256,19 @@ ui <- shiny::fluidPage(
               "Each dot is one distinct, unordered isolate pair. Its X position is the pair's value in matrix 1 and its Y position is the value for the same pair in matrix 2. Neither the diagonal nor mirrored duplicates are counted.",
               "An upward pattern suggests positive association, while points far from the main pattern merit closer inspection. Different units are allowed here: compare ranks or correlations, not the raw distance from a one-to-one line. Pairwise observations share isolates, so they are not statistically independent."),
             shiny::uiOutput("pairwise_intro"),
+            shiny::div(class = "pair-focus",
+              shiny::h4("Inspect a specific isolate pair"),
+              shiny::p(class = "small-help",
+                "Pick any two shared isolates to inspect exact values in both matrices, or choose one of the pairs with the largest rank differences."),
+              shiny::uiOutput("top_pairs_picker"),
+              shiny::div(class = "pair-selectors",
+                shiny::selectizeInput("inspect_isolate", "First isolate",
+                  choices = NULL, options = list(placeholder = "Search isolate...")),
+                shiny::selectizeInput("inspect_partner", "Second isolate",
+                  choices = NULL, options = list(placeholder = "Search second isolate..."))
+              ),
+              shiny::uiOutput("pair_inspection")
+            ),
             shiny::div(class = "plot-frame",
               shiny::plotOutput("scatter", height = "100%")
             ),
@@ -277,12 +296,26 @@ ui <- shiny::fluidPage(
             manir_guide(
               "Metadata describe each isolate, such as its group, specimen source or experimental batch. Select a categorical field in the sidebar to show a colored annotation track next to the heatmaps.",
               "Metadata categories are not automatically cluster labels or validation truth. A batch-associated cluster may reflect an experimental effect and needs separate investigation. Numeric metadata should not be interpreted as categories unless intentionally converted."),
+            shiny::uiOutput("metadata_group_status"),
+            shiny::tableOutput("group_overview"),
+            shiny::h4("Sample metadata"),
             shiny::tableOutput("metadata_preview"),
             shiny::uiOutput("metadata_note")),
           shiny::tabPanel("Export",
             manir_guide(
               "CSV and RDS preserve the original matrix values. PNG, PDF, SVG and interactive HTML preserve the displayed ordering and palette, but figure colors may be normalized or raster-sampled.",
               "Plots from large datasets are representative previews, not complete value tables. Export the CSV or RDS alongside your figures and save the settings manifest to record clustering, color mapping, pair sampling and your R environment."),
+            shiny::h4("Research notebook"),
+            shiny::p(class = "small-help",
+              "Save an editable Markdown summary of the dataset and your selected analyses. It is a starting point for your own interpretation, not an automatic scientific conclusion."),
+            shiny::textInput("research_question", "Your research question (optional)",
+              placeholder = "e.g. Do MALDI-TOF similarities reflect ANI relationships?"),
+            shiny::textAreaInput("research_notes", "Your observations and next steps",
+              placeholder = "What do you notice? Which pairs need follow-up? What are the limitations?",
+              rows = 3, width = "100%"),
+            shiny::downloadButton("download_research_summary", "Download research notes (.md)",
+                                  class = "btn-primary"),
+            shiny::hr(),
             shiny::uiOutput("difference_download_notice"),
             shiny::downloadButton("download_first", "Matrix 1 CSV"),
             shiny::downloadButton("download_second", "Matrix 2 CSV"),
