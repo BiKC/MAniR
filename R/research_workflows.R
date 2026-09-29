@@ -160,3 +160,28 @@ manir_research_report <- function(dataset, pairs = NULL, group_table = NULL,
              "- Figures may use independently normalized colors or raster previews; use original values for inference.")
   lines
 }
+
+
+# Values for a descriptive group-distribution plot. Never feed these into a
+# standard two-independent-samples test: pairs within groups share isolates.
+manir_group_pairs <- function(matrix, metadata, field,
+                              max_pairs = 20000L) {
+  if (is.null(metadata) || !is.data.frame(metadata) ||
+      length(field) != 1L || is.na(field) || !nzchar(field) ||
+      !field %in% names(metadata))
+    stop("Choose a valid metadata group or batch field.")
+  groups <- as.character(metadata[match(rownames(matrix),
+                                        rownames(metadata)), field])
+  ix <- upper_pair_indices(nrow(matrix), max_pairs = max_pairs)
+  value <- matrix[cbind(ix$i, ix$j)]
+  left <- groups[ix$i]
+  right <- groups[ix$j]
+  valid <- is.finite(value) & !is.na(left) & !is.na(right) &
+    nzchar(left) & nzchar(right)
+  list(data = data.frame(
+    group = ifelse(left[valid] == right[valid], "Within", "Between"),
+    value = value[valid]),
+    sampled = ix$sampled,
+    evaluated_pairs = length(value),
+    total_pairs = ix$total)
+}
